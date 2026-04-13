@@ -15,7 +15,6 @@ export default async function handler(req, res) {
   const data = req.body
 
   try {
-    // 1. Supabaseに保存
     const { error: dbError } = await supabase
       .from('fuel_records')
       .insert({
@@ -30,22 +29,12 @@ export default async function handler(req, res) {
         kmpl: data.kmpl,
         station: data.station || '',
       })
-
     if (dbError) throw dbError
-
-    // 2. Google Apps Script にも転送（スプレッドシート更新）
     if (GAS_URL) {
       try {
-        await fetch(GAS_URL, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(data),
-        })
-      } catch (gasErr) {
-        console.error('GAS forwarding failed:', gasErr)
-      }
+        await fetch(GAS_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) })
+      } catch (e) {}
     }
-
     return res.status(200).json({ success: true })
   } catch (err) {
     return res.status(500).json({ success: false, error: err.message })
