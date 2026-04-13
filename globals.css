@@ -1,0 +1,38 @@
+@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700&family=Space+Grotesk:wght@400;500;600&display=swap');
+
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  -webkit-tap-highlight-color: transparent;
+}
+
+:root {
+  --bg: #0f1117;
+  --bg2: #1a1d27;
+  --bg3: #22263a;
+  --surface: #2a2f45;
+  --accent: #4f8ef7;
+  --accent2: #7c5cfc;
+  --green: #2dd4aa;
+  --amber: #f5a623;
+  --red: #f08080;
+  --text: #e8eaf6;
+  --text2: #9ca3c8;
+  --text3: #6b7399;
+  --border: rgba(255,255,255,0.08);
+  --radius: 14px;
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+html, body {
+  height: 100%;
+  overflow: hidden;
+  background: var(--bg);
+  color: var(--text);
+  font-family: 'Noto Sans JP', sans-serif;
+}
+
+#__next {
+  height: 100%;
+}
