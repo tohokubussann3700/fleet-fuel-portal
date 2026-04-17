@@ -655,7 +655,7 @@ function HistoryTab({ records }) {
             {r.station_name && <span>・{r.station_name}</span>}
           </div>
           {r.photo_url && (
-            
+            <a
               href={r.photo_url}
               target="_blank"
               rel="noreferrer"
