@@ -105,6 +105,7 @@ export default function Home() {
   );
 }
 
+/* ================== ログイン ================== */
 function LoginView({
   nameInput,
   setNameInput,
@@ -168,6 +169,7 @@ function LoginView({
   );
 }
 
+/* ================== メイン ================== */
 function AppView({
   driver,
   department,
@@ -272,6 +274,7 @@ function AppView({
   );
 }
 
+/* ================== 給油記録タブ ================== */
 function RecordTab({ driver, department, vehicles, onSaved }) {
   const [vehicleId, setVehicleId] = useState('');
   const [photoFile, setPhotoFile] = useState(null);
@@ -608,6 +611,7 @@ function RecordTab({ driver, department, vehicles, onSaved }) {
   );
 }
 
+/* ================== 履歴タブ ================== */
 function HistoryTab({ records }) {
   if (records.length === 0) {
     return (
@@ -655,7 +659,7 @@ function HistoryTab({ records }) {
             {r.station_name && <span>・{r.station_name}</span>}
           </div>
           {r.photo_url && (
-            
+            <a
               href={r.photo_url}
               target="_blank"
               rel="noreferrer"
@@ -676,6 +680,7 @@ function HistoryTab({ records }) {
   );
 }
 
+/* ================== 月次集計タブ ================== */
 function SummaryTab({ records, vehicles }) {
   const summary = useMemo(() => {
     const map = new Map();
@@ -798,6 +803,7 @@ function SummaryTab({ records, vehicles }) {
   );
 }
 
+/* ================== 設定タブ ================== */
 function SettingsTab({ vehicles, onChanged }) {
   const [newName, setNewName] = useState('');
   const [newPlate, setNewPlate] = useState('');
@@ -933,6 +939,8 @@ function SettingsTab({ vehicles, onChanged }) {
   );
 }
 
+/* ================== パーツ ================== */
+
 function FormRow({ label, value, onChange, type = 'text', ...rest }) {
   return (
     <div>
@@ -958,6 +966,8 @@ function Stat({ label, value }) {
     </div>
   );
 }
+
+/* ================== utils ================== */
 
 function fileToBase64(file) {
   return new Promise((resolve, reject) => {
