@@ -108,18 +108,14 @@ export default function Home() {
   );
 }
 
-// ========== ログイン ==========
+// ========== ログイン(検索バー削除) ==========
 function LoginScreen({ employees, vehicles, onLogin, defaultEmployee, defaultVehicle }) {
   const [selectedEmp, setSelectedEmp] = useState(defaultEmployee || null);
   const [selectedVeh, setSelectedVeh] = useState(defaultVehicle || null);
-  const [empSearch, setEmpSearch] = useState('');
-  const [vehSearch, setVehSearch] = useState('');
   const [showEmpList, setShowEmpList] = useState(false);
   const [showVehList, setShowVehList] = useState(false);
 
-  const filteredEmps = employees.filter(e => !empSearch || e.name.includes(empSearch) || (e.department || '').includes(empSearch));
-  const filteredVehs = vehicles.filter(v => !vehSearch || v.name.includes(vehSearch) || (v.plate_number || '').includes(vehSearch));
-  const sortedVehs = defaultVehicle ? [defaultVehicle, ...filteredVehs.filter(v => v.id !== defaultVehicle.id)] : filteredVehs;
+  const sortedVehs = defaultVehicle ? [defaultVehicle, ...vehicles.filter(v => v.id !== defaultVehicle.id)] : vehicles;
   const canStart = selectedEmp && selectedVeh;
 
   return (
@@ -141,12 +137,11 @@ function LoginScreen({ employees, vehicles, onLogin, defaultEmployee, defaultVeh
 
       {showEmpList && (
         <div className="bg-slate-900 border border-slate-700 rounded-xl mb-4 overflow-hidden">
-          <input type="text" placeholder="社員名/部署で検索..." value={empSearch} onChange={(e) => setEmpSearch(e.target.value)} className="w-full bg-slate-800 px-4 py-3 text-base text-slate-100 outline-none border-b border-slate-700" autoFocus />
           <div className="max-h-80 overflow-y-auto">
-            {filteredEmps.length === 0 ? (
-              <div className="p-4 text-sm text-slate-400 text-center">社員が見つかりません</div>
-            ) : filteredEmps.map(emp => (
-              <button key={emp.id} onClick={() => { setSelectedEmp(emp); setShowEmpList(false); setEmpSearch(''); }} className={`w-full text-left px-4 py-3 hover:bg-slate-800 border-b border-slate-800 last:border-0 flex items-center gap-3 ${selectedEmp?.id === emp.id ? 'bg-blue-900/30' : ''}`}>
+            {employees.length === 0 ? (
+              <div className="p-4 text-sm text-slate-400 text-center">社員が登録されていません</div>
+            ) : employees.map(emp => (
+              <button key={emp.id} onClick={() => { setSelectedEmp(emp); setShowEmpList(false); }} className={`w-full text-left px-4 py-3 hover:bg-slate-800 border-b border-slate-800 last:border-0 flex items-center gap-3 ${selectedEmp?.id === emp.id ? 'bg-blue-900/30' : ''}`}>
                 <div className="w-9 h-9 rounded-full bg-slate-700 flex items-center justify-center text-xs font-medium flex-shrink-0">{emp.name.split(' ')[0].slice(0, 2)}</div>
                 <div className="flex-1 min-w-0">
                   <div className="text-sm font-medium flex items-center gap-2">
@@ -169,10 +164,9 @@ function LoginScreen({ employees, vehicles, onLogin, defaultEmployee, defaultVeh
 
       {showVehList && (
         <div className="bg-slate-900 border border-slate-700 rounded-xl mb-4 overflow-hidden">
-          <input type="text" placeholder="車種/ナンバーで検索..." value={vehSearch} onChange={(e) => setVehSearch(e.target.value)} className="w-full bg-slate-800 px-4 py-3 text-base text-slate-100 outline-none border-b border-slate-700" autoFocus />
           <div className="max-h-80 overflow-y-auto">
             {sortedVehs.map((veh, idx) => (
-              <button key={veh.id} onClick={() => { setSelectedVeh(veh); setShowVehList(false); setVehSearch(''); }} className={`w-full text-left px-4 py-3 hover:bg-slate-800 border-b border-slate-800 last:border-0 flex items-center gap-3 ${selectedVeh?.id === veh.id ? 'bg-blue-900/30' : ''}`}>
+              <button key={veh.id} onClick={() => { setSelectedVeh(veh); setShowVehList(false); }} className={`w-full text-left px-4 py-3 hover:bg-slate-800 border-b border-slate-800 last:border-0 flex items-center gap-3 ${selectedVeh?.id === veh.id ? 'bg-blue-900/30' : ''}`}>
                 <div className={`w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0 ${defaultVehicle?.id === veh.id && idx === 0 ? 'bg-blue-800' : 'bg-slate-800'}`}>
                   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M5 17a2 2 0 104 0 2 2 0 00-4 0zM15 17a2 2 0 104 0 2 2 0 00-4 0zM1 9h18l2 6v2H3v-2zM3 9l2-4h12l2 4"/></svg>
                 </div>
@@ -245,7 +239,6 @@ function RecordScreen({ employee, vehicle, onSaved }) {
       .then(({ data }) => { if (data && data[0]) setLastOdometer(data[0].odometer); });
   }, [vehicle?.id]);
 
-  // オドメーター変更 → 走行距離を自動計算(distance空のとき)
   useEffect(() => {
     if (odometer && lastOdometer && !distance) {
       const calcDist = Math.max(0, Number(odometer) - lastOdometer);
@@ -302,9 +295,7 @@ function RecordScreen({ employee, vehicle, onSaved }) {
           if (d.stationName) setStationName(d.stationName);
           if (d.datetime) setDatetime(d.datetime);
         } else if (result.type === 'meter') {
-          // 読み取った数値を1000未満か1000以上かで判定
           const candidates = [d.odometer, d.tripA, d.tripB].filter(v => v != null && !isNaN(v));
-          // オドメーター優先: 1000以上の最大値をオドメーターとみなす
           let odoValue = null;
           let distValue = null;
           candidates.forEach(v => {
@@ -356,14 +347,12 @@ function RecordScreen({ employee, vehicle, onSaved }) {
       const json = await res.json();
       if (!res.ok || !json.success) throw new Error(json.error || '保存に失敗しました');
 
-      setSaveMsg({ type: 'success', text: '保存しました!DB+Spreadsheetに反映済み' });
-      // フォームリセット
+      setSaveMsg({ type: 'success', text: '保存しました!DB+Spreadsheet+Driveに反映済み' });
       setReceiptImage(null); setMeterImage(null);
       setLiters(''); setUnitPrice(''); setTotalAmount('');
       setOdometer(''); setDistance(''); setStationName(''); setMemo('');
       if (odometer) setLastOdometer(Number(odometer));
 
-      // 履歴画面に遷移してモーダル自動表示
       setTimeout(() => {
         if (json.record?.id && onSaved) onSaved(json.record.id);
       }, 800);
@@ -405,14 +394,12 @@ function RecordScreen({ employee, vehicle, onSaved }) {
 
       {aiError && <div className="bg-red-950/40 border border-red-800 rounded-xl p-3 mb-4 text-sm text-red-200">AI解析失敗: {aiError}</div>}
 
-      {/* 単価/給油量/合計金額 3列 */}
       <div className="grid grid-cols-3 gap-2 mb-3">
         <FormField label="単価" value={unitPrice} onChange={setUnitPrice} type="number" step="0.01" placeholder="172.5" big />
         <FormField label="給油量(L)" value={liters} onChange={setLiters} type="number" step="0.01" placeholder="35.42" big />
         <FormField label="合計(円)*" value={totalAmount} onChange={setTotalAmount} type="number" placeholder="6111" required big />
       </div>
 
-      {/* オドメーター & 今回走行距離 */}
       <div className="grid grid-cols-2 gap-2 mb-3">
         <FormField label="オドメーター(km)" value={odometer} onChange={setOdometer} type="number" placeholder="73000" />
         <FormField label="今回走行距離(km)" value={distance} onChange={setDistance} type="number" placeholder="500" />
@@ -448,7 +435,7 @@ function RecordScreen({ employee, vehicle, onSaved }) {
   );
 }
 
-function FormField({ label, value, onChange, type = 'text', step, placeholder, required, big }) {
+function FormField({ label, value, onChange, type = 'text', step, placeholder, required, big, readOnly }) {
   return (
     <div>
       <label className="text-xs text-slate-300 mb-1 block">{label}</label>
@@ -459,8 +446,9 @@ function FormField({ label, value, onChange, type = 'text', step, placeholder, r
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
         required={required}
+        readOnly={readOnly}
         style={{ fontSize: '16px' }}
-        className={`w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-3 text-slate-100 outline-none focus:border-blue-500 ${big ? 'text-lg font-medium' : 'text-base'}`}
+        className={`w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-3 text-slate-100 outline-none focus:border-blue-500 ${big ? 'text-lg font-medium' : 'text-base'} ${readOnly ? 'opacity-80' : ''}`}
       />
     </div>
   );
@@ -476,7 +464,6 @@ function HistoryScreen({ vehicles, employees, autoOpenId, onAutoOpened }) {
 
   useEffect(() => { loadRecords(); }, [filterVehicleId, filterMonth]);
 
-  // 保存直後に該当レコードモーダル自動オープン
   useEffect(() => {
     if (autoOpenId && records.length > 0) {
       const target = records.find(r => r.id === autoOpenId);
@@ -509,6 +496,13 @@ function HistoryScreen({ vehicles, employees, autoOpenId, onAutoOpened }) {
     return acc;
   }, {});
 
+  // 月表示用フォーマット(2026-04 → "2026年4月")
+  function formatMonth(monthStr) {
+    if (!monthStr || monthStr === 'unknown') return '不明';
+    const [y, m] = monthStr.split('-').map(Number);
+    return `${y}年${m}月`;
+  }
+
   return (
     <div className="p-4 max-w-xl mx-auto">
       <div className="flex gap-2 mb-4">
@@ -518,7 +512,7 @@ function HistoryScreen({ vehicles, employees, autoOpenId, onAutoOpened }) {
         </select>
         <select value={filterMonth} onChange={e => setFilterMonth(e.target.value)} style={{ fontSize: '16px' }} className="flex-1 bg-slate-900 border border-slate-700 rounded-xl px-3 py-3 text-slate-100">
           <option value="all">全期間</option>
-          {Object.keys(grouped).sort().reverse().map(m => <option key={m} value={m}>{m}</option>)}
+          {Object.keys(grouped).sort().reverse().map(m => <option key={m} value={m}>{formatMonth(m)}</option>)}
         </select>
       </div>
 
@@ -531,16 +525,29 @@ function HistoryScreen({ vehicles, employees, autoOpenId, onAutoOpened }) {
         const totalLiters = recs.reduce((s, r) => s + (r.liters || 0), 0);
         const avgMileage = totalLiters > 0 ? (totalDist / totalLiters).toFixed(2) : '—';
         return (
-          <div key={month} className="mb-6">
-            <div className="bg-slate-900 border border-slate-800 rounded-xl p-4 mb-2">
-              <div className="text-xs text-slate-300 mb-1">{month}</div>
-              <div className="text-2xl font-medium mb-2">{totalDist.toLocaleString()} km</div>
-              <div className="flex gap-4 text-sm text-slate-300">
-                <span>¥{totalAmount.toLocaleString()}</span>
-                <span>{totalLiters.toFixed(1)}L</span>
-                <span>平均 {avgMileage} km/L</span>
+          <div key={month} className="mb-8">
+            {/* サマリーカード(強調) */}
+            <div className="relative bg-gradient-to-br from-blue-950 to-slate-900 border-2 border-blue-600/50 rounded-2xl p-5 mb-4 shadow-lg shadow-blue-900/20">
+              <div className="absolute top-3 right-3 text-[10px] text-blue-300 bg-blue-900/40 px-2 py-0.5 rounded">{formatMonth(month)}</div>
+              <div className="text-xs text-blue-200/80 uppercase tracking-wider mb-1">今月の走行距離</div>
+              <div className="text-3xl font-bold text-white mb-3">{totalDist.toLocaleString()} <span className="text-lg text-blue-200">km</span></div>
+              <div className="grid grid-cols-3 gap-2 text-center">
+                <div className="bg-slate-900/60 rounded-lg py-2">
+                  <div className="text-[10px] text-slate-400">費用</div>
+                  <div className="text-sm font-semibold text-white">¥{totalAmount.toLocaleString()}</div>
+                </div>
+                <div className="bg-slate-900/60 rounded-lg py-2">
+                  <div className="text-[10px] text-slate-400">給油量</div>
+                  <div className="text-sm font-semibold text-white">{totalLiters.toFixed(1)}L</div>
+                </div>
+                <div className="bg-slate-900/60 rounded-lg py-2">
+                  <div className="text-[10px] text-slate-400">平均燃費</div>
+                  <div className="text-sm font-semibold text-white">{avgMileage} km/L</div>
+                </div>
               </div>
             </div>
+
+            {/* 詳細レコードカード */}
             {recs.map(r => {
               const veh = vehicles.find(v => v.id === r.vehicle_id);
               return (
@@ -566,7 +573,7 @@ function HistoryScreen({ vehicles, employees, autoOpenId, onAutoOpened }) {
       })}
 
       {editingRecord && (
-        <EditRecordModal
+        <RecordModal
           record={editingRecord}
           vehicles={vehicles}
           employees={employees}
@@ -578,9 +585,11 @@ function HistoryScreen({ vehicles, employees, autoOpenId, onAutoOpened }) {
   );
 }
 
-// ========== 編集モーダル ==========
-function EditRecordModal({ record, vehicles, employees, onClose, onSaved }) {
-  const [form, setForm] = useState({
+// ========== 詳細・編集モーダル(新仕様) ==========
+function RecordModal({ record, vehicles, employees, onClose, onSaved }) {
+  // viewMode: 'view' (読み取り専用、変更ボタンのみ) | 'edit' (編集可能、削除・保存ボタン)
+  const [viewMode, setViewMode] = useState('view');
+  const initialForm = {
     datetime: record.datetime ? record.datetime.slice(0, 16) : '',
     vehicle_id: record.vehicle_id || '',
     employee_id: record.employee_id || '',
@@ -594,12 +603,12 @@ function EditRecordModal({ record, vehicles, employees, onClose, onSaved }) {
     mileage: record.mileage ?? '',
     station_name: record.station_name || '',
     memo: record.memo || '',
-  });
+  };
+  const [form, setForm] = useState(initialForm);
   const [lastOdometer, setLastOdometer] = useState(null);
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState(null);
 
-  // 前回オドメーター取得(この車両の、このレコードより前の最新レコード)
   useEffect(() => {
     if (!form.vehicle_id || !form.datetime) return;
     supabase.from('fuel_records')
@@ -612,15 +621,16 @@ function EditRecordModal({ record, vehicles, employees, onClose, onSaved }) {
       .then(({ data }) => { if (data && data[0]) setLastOdometer(data[0].odometer); else setLastOdometer(null); });
   }, [form.vehicle_id, form.datetime, record.id]);
 
+  // 差分検知
+  const hasChanges = JSON.stringify(form) !== JSON.stringify(initialForm);
+
   function update(key, value) {
     setForm(prev => {
       const next = { ...prev, [key]: value };
-      // オドメーター変更 → 走行距離再計算
       if (key === 'odometer' && lastOdometer != null && value !== '') {
         const newDist = Math.max(0, Number(value) - lastOdometer);
         next.distance = String(newDist);
       }
-      // 走行距離 or 給油量変更 → 燃費再計算
       if (key === 'distance' || key === 'liters' || key === 'odometer') {
         const dist = Number(key === 'distance' ? value : next.distance);
         const lit = Number(key === 'liters' ? value : next.liters);
@@ -684,11 +694,15 @@ function EditRecordModal({ record, vehicles, employees, onClose, onSaved }) {
     }
   }
 
+  const isReadOnly = viewMode === 'view';
+
   return (
     <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4 overflow-y-auto">
       <div className="bg-slate-950 border border-slate-800 rounded-2xl w-full max-w-md p-5 my-4 max-h-[90vh] overflow-y-auto">
         <div className="flex items-center justify-between mb-4">
-          <h2 className="text-lg font-medium">レコード詳細・編集</h2>
+          <h2 className="text-lg font-medium">
+            {viewMode === 'view' ? 'レコード詳細' : 'レコード編集'}
+          </h2>
           <button onClick={onClose} className="text-slate-300 text-3xl leading-none hover:text-white px-2">×</button>
         </div>
 
@@ -697,11 +711,11 @@ function EditRecordModal({ record, vehicles, employees, onClose, onSaved }) {
         <div className="space-y-3">
           <div>
             <label className="text-xs text-slate-300 mb-1 block">給油日時</label>
-            <input type="datetime-local" value={form.datetime} onChange={e => update('datetime', e.target.value)} style={{ fontSize: '16px' }} className="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-3 text-slate-100" />
+            <input type="datetime-local" value={form.datetime} onChange={e => update('datetime', e.target.value)} readOnly={isReadOnly} style={{ fontSize: '16px' }} className={`w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-3 text-slate-100 ${isReadOnly ? 'opacity-80' : ''}`} />
           </div>
           <div>
             <label className="text-xs text-slate-300 mb-1 block">車両</label>
-            <select value={form.vehicle_id} onChange={e => update('vehicle_id', e.target.value)} style={{ fontSize: '16px' }} className="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-3 text-slate-100">
+            <select value={form.vehicle_id} onChange={e => update('vehicle_id', e.target.value)} disabled={isReadOnly} style={{ fontSize: '16px' }} className={`w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-3 text-slate-100 ${isReadOnly ? 'opacity-80' : ''}`}>
               {vehicles.map(v => <option key={v.id} value={v.id}>{v.name}</option>)}
             </select>
           </div>
@@ -711,35 +725,45 @@ function EditRecordModal({ record, vehicles, employees, onClose, onSaved }) {
               const emp = employees.find(x => x.id === e.target.value);
               update('employee_id', e.target.value);
               if (emp) { update('driver_name', emp.name); update('department', emp.department || ''); }
-            }} style={{ fontSize: '16px' }} className="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-3 text-slate-100">
+            }} disabled={isReadOnly} style={{ fontSize: '16px' }} className={`w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-3 text-slate-100 ${isReadOnly ? 'opacity-80' : ''}`}>
               <option value="">-- 選択 --</option>
               {employees.map(emp => <option key={emp.id} value={emp.id}>{emp.name} ({emp.department})</option>)}
             </select>
           </div>
 
           <div className="grid grid-cols-3 gap-2">
-            <FormField label="単価" value={form.unit_price} onChange={v => update('unit_price', v)} type="number" step="0.01" big />
-            <FormField label="給油量(L)" value={form.liters} onChange={v => update('liters', v)} type="number" step="0.01" big />
-            <FormField label="合計(円)" value={form.total_amount} onChange={v => update('total_amount', v)} type="number" big />
+            <FormField label="単価" value={form.unit_price} onChange={v => update('unit_price', v)} type="number" step="0.01" big readOnly={isReadOnly} />
+            <FormField label="給油量(L)" value={form.liters} onChange={v => update('liters', v)} type="number" step="0.01" big readOnly={isReadOnly} />
+            <FormField label="合計(円)" value={form.total_amount} onChange={v => update('total_amount', v)} type="number" big readOnly={isReadOnly} />
           </div>
 
           <div className="grid grid-cols-2 gap-2">
-            <FormField label="オドメーター(km)" value={form.odometer} onChange={v => update('odometer', v)} type="number" />
-            <FormField label="今回走行距離(km)" value={form.distance} onChange={v => update('distance', v)} type="number" step="0.1" />
+            <FormField label="オドメーター(km)" value={form.odometer} onChange={v => update('odometer', v)} type="number" readOnly={isReadOnly} />
+            <FormField label="今回走行距離(km)" value={form.distance} onChange={v => update('distance', v)} type="number" step="0.1" readOnly={isReadOnly} />
           </div>
           {lastOdometer != null && <div className="text-xs text-slate-400">前回オドメーター: {lastOdometer.toLocaleString()} km</div>}
 
-          <FormField label="燃費(km/L) - 自動計算" value={form.mileage} onChange={v => update('mileage', v)} type="number" step="0.01" />
-          <FormField label="給油所" value={form.station_name} onChange={v => update('station_name', v)} />
-          <FormField label="メモ" value={form.memo} onChange={v => update('memo', v)} />
+          <FormField label="燃費(km/L)" value={form.mileage} onChange={v => update('mileage', v)} type="number" step="0.01" readOnly={isReadOnly} />
+          <FormField label="給油所" value={form.station_name} onChange={v => update('station_name', v)} readOnly={isReadOnly} />
+          <FormField label="メモ" value={form.memo} onChange={v => update('memo', v)} readOnly={isReadOnly} />
         </div>
 
         <div className="flex gap-2 mt-5">
-          <button onClick={handleDelete} disabled={saving} className="bg-red-900/30 text-red-300 border border-red-800 rounded-xl px-4 py-3 text-sm">削除</button>
-          <button onClick={onClose} className="flex-1 bg-slate-800 text-slate-200 rounded-xl py-3 text-sm">閉じる</button>
-          <button onClick={handleSave} disabled={saving} className={`flex-1 rounded-xl py-3 text-sm font-medium ${saving ? 'bg-slate-800 text-slate-400' : 'bg-blue-600 text-white'}`}>
-            {saving ? '保存中...' : '保存'}
-          </button>
+          {viewMode === 'view' ? (
+            <button onClick={() => setViewMode('edit')} className="flex-1 bg-blue-600 text-white rounded-xl py-3 text-sm font-medium">
+              変更
+            </button>
+          ) : (
+            <>
+              <button onClick={handleDelete} disabled={saving} className="bg-red-900/30 text-red-300 border border-red-800 rounded-xl px-4 py-3 text-sm">削除</button>
+              <button onClick={() => { setForm(initialForm); setViewMode('view'); }} className="flex-1 bg-slate-800 text-slate-200 rounded-xl py-3 text-sm">キャンセル</button>
+              {hasChanges && (
+                <button onClick={handleSave} disabled={saving} className={`flex-1 rounded-xl py-3 text-sm font-medium ${saving ? 'bg-slate-800 text-slate-400' : 'bg-blue-600 text-white'}`}>
+                  {saving ? '保存中...' : '保存'}
+                </button>
+              )}
+            </>
+          )}
         </div>
       </div>
     </div>
