@@ -21,8 +21,33 @@ export default async function handler(req, res) {
   try {
     const data = req.body;
     const { id, ...updateFields } = data;
-    
+    const gasUrl = process.env.GAS_URL;
+
     if (!id) throw new Error('レコードIDが必要です');
+
+    // レシート画像が新規Base64ならGAS経由でDriveに保存
+    if (updateFields.receipt_image && updateFields.receipt_image.startsWith('data:') && gasUrl) {
+      try {
+        const uploadRes = await fetch(gasUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            action: 'uploadReceipt',
+            data: {
+              imageBase64: updateFields.receipt_image,
+              datetime: updateFields.datetime,
+              driver_name: updateFields.driver_name,
+            },
+          }),
+        });
+        const uploadJson = await uploadRes.json();
+        if (uploadJson.success && uploadJson.result?.url) {
+          updateFields.receipt_image = uploadJson.result.url;
+        }
+      } catch (uploadErr) {
+        console.warn('Receipt upload failed:', uploadErr.message);
+      }
+    }
 
     // 1. Supabase更新
     const { data: updated, error: dbError } = await supabaseAdmin
@@ -42,7 +67,6 @@ export default async function handler(req, res) {
       .single();
 
     // 3. GAS経由でSpreadsheet更新
-    const gasUrl = process.env.GAS_URL;
     if (gasUrl) {
       try {
         await fetch(gasUrl, {
@@ -65,7 +89,7 @@ export default async function handler(req, res) {
               mileage: updated.mileage,
               station_name: updated.station_name,
               memo: updated.memo,
-              receipt_image_url: '',
+              receipt_image_url: updated.receipt_image || '',
               meter_image_url: '',
             },
           }),
