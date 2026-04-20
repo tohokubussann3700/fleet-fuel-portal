@@ -478,7 +478,7 @@ function RecordScreen({ employee, vehicle, vehicles }) {
       <button
         onClick={handleAnalyze}
         disabled={(!receiptImage && !meterImage) || analyzing}
-        className={`w-full rounded-xl py-3 text-sm font-medium mb-4 flex items-center justify-center gap-2 ${receiptImage && !analyzing ? 'bg-blue-600 hover:bg-blue-500 text-white' : 'bg-slate-800 text-slate-500'}`}
+        className={`w-full rounded-xl py-3 text-sm font-medium mb-4 flex items-center justify-center gap-2 ${(receiptImage || meterImage) && !analyzing ? 'bg-blue-600 hover:bg-blue-500 text-white' : 'bg-slate-800 text-slate-500'}`}
       >
         {analyzing ? '解析中...' : '✨ AIで画像を読み取る'}
       </button>
