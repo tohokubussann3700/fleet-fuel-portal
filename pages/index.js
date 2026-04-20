@@ -1,673 +1,854 @@
-import { useState, useEffect, useRef, useMemo } from 'react';
-import Head from 'next/head';
+import { useState, useEffect, useRef } from 'react';
 import { supabase } from '../lib/supabase';
-import {
-  Fuel,
-  History,
-  BarChart3,
-  Settings,
-  Camera,
-  Loader2,
-  LogOut,
-  Plus,
-  Trash2,
-  Sparkles,
-  X,
-  Car,
-  Check,
-  ExternalLink,
-} from 'lucide-react';
+import Image from 'next/image';
 
-const DEPARTMENTS = [
-  'ライフデザイン部',
-  'エンジニアリング部',
-  '不動産部',
-  '総務部',
-  'その他',
-];
-
-const TABS = [
-  { id: 'record', label: '給油記録', icon: Fuel },
-  { id: 'history', label: '履歴', icon: History },
-  { id: 'summary', label: '月次集計', icon: BarChart3 },
-  { id: 'settings', label: '設定', icon: Settings },
-];
-
-export default function Home() {
-  const [driver, setDriver] = useState('');
-  const [department, setDepartment] = useState('');
-  const [nameInput, setNameInput] = useState('');
-  const [deptInput, setDeptInput] = useState('');
-  const [activeTab, setActiveTab] = useState('record');
-
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-      const n = window.sessionStorage.getItem('driver_name');
-      const d = window.sessionStorage.getItem('driver_dept');
-      if (n) setDriver(n);
-      if (d) setDepartment(d);
-    }
-  }, []);
-
-  const handleLogin = () => {
-    const name = nameInput.trim();
-    if (!name || !deptInput) return;
-    setDriver(name);
-    setDepartment(deptInput);
-    if (typeof window !== 'undefined') {
-      window.sessionStorage.setItem('driver_name', name);
-      window.sessionStorage.setItem('driver_dept', deptInput);
-    }
-  };
-
-  const handleLogout = () => {
-    setDriver('');
-    setDepartment('');
-    setNameInput('');
-    setDeptInput('');
-    if (typeof window !== 'undefined') {
-      window.sessionStorage.removeItem('driver_name');
-      window.sessionStorage.removeItem('driver_dept');
-    }
-  };
-
-  return (
-    <>
-      <Head>
-        <title>社用車 燃費管理ポータル</title>
-        <meta
-          name="viewport"
-          content="width=device-width, initial-scale=1, maximum-scale=1"
-        />
-        <meta name="theme-color" content="#020617" />
-      </Head>
-
-      <div className="min-h-screen bg-slate-950 text-slate-100">
-        {!driver ? (
-          <LoginView
-            nameInput={nameInput}
-            setNameInput={setNameInput}
-            deptInput={deptInput}
-            setDeptInput={setDeptInput}
-            onLogin={handleLogin}
-          />
-        ) : (
-          <AppView
-            driver={driver}
-            department={department}
-            activeTab={activeTab}
-            setActiveTab={setActiveTab}
-            onLogout={handleLogout}
-          />
-        )}
-      </div>
-    </>
-  );
-}
-
-function LoginView({
-  nameInput,
-  setNameInput,
-  deptInput,
-  setDeptInput,
-  onLogin,
-}) {
-  const canSubmit = nameInput.trim() && deptInput;
-
-  return (
-    <div className="flex min-h-screen flex-col items-center justify-center px-6 py-12">
-      <div className="mb-8 flex items-center gap-3">
-        <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-blue-500 to-cyan-400 shadow-lg shadow-blue-500/20">
-          <Fuel className="h-7 w-7 text-white" />
-        </div>
-        <div>
-          <h1 className="text-xl font-bold">社用車 燃費管理</h1>
-          <p className="text-xs text-slate-400">東北物産株式会社</p>
-        </div>
-      </div>
-
-      <div className="w-full max-w-sm rounded-2xl bg-slate-900 p-6 ring-1 ring-slate-800">
-        <label className="mb-2 block text-sm text-slate-300">お名前</label>
-        <input
-          type="text"
-          value={nameInput}
-          onChange={(e) => setNameInput(e.target.value)}
-          placeholder="例: 山田太郎"
-          className="w-full rounded-xl bg-slate-800 px-4 py-3 text-base ring-1 ring-slate-700 placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
-        />
-
-        <label className="mb-2 mt-4 block text-sm text-slate-300">部署</label>
-        <div className="grid grid-cols-2 gap-2">
-          {DEPARTMENTS.map((d) => (
-            <button
-              key={d}
-              onClick={() => setDeptInput(d)}
-              className={`rounded-xl px-3 py-2.5 text-sm font-medium transition ${
-                deptInput === d
-                  ? 'bg-blue-600 text-white ring-1 ring-blue-400'
-                  : 'bg-slate-800 text-slate-300 ring-1 ring-slate-700 hover:bg-slate-700'
-              }`}
-            >
-              {d}
-            </button>
-          ))}
-        </div>
-
-        <button
-          onClick={onLogin}
-          disabled={!canSubmit}
-          className="mt-6 w-full rounded-xl bg-blue-600 py-3 text-base font-semibold text-white transition hover:bg-blue-500 disabled:cursor-not-allowed disabled:bg-slate-700 disabled:text-slate-500"
-        >
-          ログイン
-        </button>
-        <p className="mt-3 text-center text-xs text-slate-500">
-          ※ パスワードは不要です
-        </p>
-      </div>
-    </div>
-  );
-}
-
-function AppView({
-  driver,
-  department,
-  activeTab,
-  setActiveTab,
-  onLogout,
-}) {
-  const [vehicles, setVehicles] = useState([]);
-  const [records, setRecords] = useState([]);
-  const [loading, setLoading] = useState(true);
-
-  const refresh = async () => {
-    setLoading(true);
-    const [vRes, rRes] = await Promise.all([
-      supabase.from('vehicles').select('*').order('name', { ascending: true }),
-      supabase
-        .from('fuel_records')
-        .select('*, vehicles(name, plate_number)')
-        .order('refueled_at', { ascending: false })
-        .limit(300),
-    ]);
-    if (vRes.data) setVehicles(vRes.data);
-    if (rRes.data) setRecords(rRes.data);
-    setLoading(false);
-  };
-
-  useEffect(() => {
-    refresh();
-  }, []);
-
-  return (
-    <div className="flex min-h-screen flex-col pb-24">
-      <header className="sticky top-0 z-10 border-b border-slate-800 bg-slate-950/80 backdrop-blur">
-        <div className="flex items-center justify-between px-4 py-3">
-          <div className="flex items-center gap-2">
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-blue-500 to-cyan-400">
-              <Fuel className="h-4 w-4 text-white" />
-            </div>
-            <span className="text-sm font-semibold">燃費管理</span>
-          </div>
-          <div className="flex items-center gap-3">
-            <div className="text-right">
-              <div className="text-xs font-medium text-slate-200">{driver}</div>
-              <div className="text-[10px] text-slate-500">{department}</div>
-            </div>
-            <button
-              onClick={onLogout}
-              className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-800 hover:text-white"
-              aria-label="ログアウト"
-            >
-              <LogOut className="h-4 w-4" />
-            </button>
-          </div>
-        </div>
-      </header>
-
-      <main className="flex-1 px-4 py-4">
-        {loading ? (
-          <div className="flex items-center justify-center py-20">
-            <Loader2 className="h-6 w-6 animate-spin text-slate-500" />
-          </div>
-        ) : (
-          <>
-            {activeTab === 'record' && (
-              <RecordTab
-                driver={driver}
-                department={department}
-                vehicles={vehicles}
-                onSaved={refresh}
-              />
-            )}
-            {activeTab === 'history' && <HistoryTab records={records} />}
-            {activeTab === 'summary' && (
-              <SummaryTab records={records} vehicles={vehicles} />
-            )}
-            {activeTab === 'settings' && (
-              <SettingsTab vehicles={vehicles} onChanged={refresh} />
-            )}
-          </>
-        )}
-      </main>
-
-      <nav className="fixed bottom-0 left-0 right-0 z-10 border-t border-slate-800 bg-slate-950/95 backdrop-blur">
-        <div className="mx-auto grid max-w-xl grid-cols-4">
-          {TABS.map(({ id, label, icon: Icon }) => (
-            <button
-              key={id}
-              onClick={() => setActiveTab(id)}
-              className={`flex flex-col items-center gap-1 py-3 text-[10px] transition ${
-                activeTab === id
-                  ? 'text-blue-400'
-                  : 'text-slate-500 hover:text-slate-300'
-              }`}
-            >
-              <Icon className="h-5 w-5" />
-              <span>{label}</span>
-            </button>
-          ))}
-        </div>
-      </nav>
-    </div>
-  );
-}
-
-function RecordTab({ driver, department, vehicles, onSaved }) {
-  const [vehicleId, setVehicleId] = useState('');
-  const [photoFile, setPhotoFile] = useState(null);
-  const [photoPreview, setPhotoPreview] = useState(null);
-  const [analyzing, setAnalyzing] = useState(false);
-  const [saving, setSaving] = useState(false);
-  const [message, setMessage] = useState(null);
-
-  const [form, setForm] = useState({
-    liters: '',
-    price_per_liter: '',
-    total_amount: '',
-    odometer: '',
-    refueled_at: '',
-    station_name: '',
-    note: '',
+// ========== 画像圧縮ユーティリティ ==========
+async function compressImage(file, maxWidth = 1200, quality = 0.8) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const img = new window.Image();
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        let { width, height } = img;
+        if (width > maxWidth) {
+          height = (maxWidth / width) * height;
+          width = maxWidth;
+        }
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, width, height);
+        const dataUrl = canvas.toDataURL('image/jpeg', quality);
+        resolve(dataUrl);
+      };
+      img.onerror = reject;
+      img.src = e.target.result;
+    };
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
   });
+}
 
-  const fileInputRef = useRef(null);
-  const activeVehicles = vehicles.filter((v) => v.is_active);
+// ========== メインコンポーネント ==========
+export default function Home() {
+  const [screen, setScreen] = useState('loading'); // loading/login/record/history/monthly/settings
+  const [tab, setTab] = useState('record');
+  
+  // ユーザー情報
+  const [currentEmployee, setCurrentEmployee] = useState(null); // {id, name, department, is_admin}
+  const [currentVehicle, setCurrentVehicle] = useState(null); // {id, name, plate_number}
+  
+  // マスターデータ
+  const [employees, setEmployees] = useState([]);
+  const [vehicles, setVehicles] = useState([]);
 
+  // 初期ロード
   useEffect(() => {
-    if (!vehicleId && activeVehicles.length > 0) {
-      setVehicleId(activeVehicles[0].id);
-    }
-  }, [activeVehicles]);
-
-  useEffect(() => {
-    if (!form.refueled_at) {
-      setForm((f) => ({ ...f, refueled_at: nowLocalInput() }));
-    }
+    loadMasters();
   }, []);
 
-  const handlePhotoChange = (e) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    setPhotoFile(file);
-    setPhotoPreview(URL.createObjectURL(file));
-    setMessage(null);
-  };
-
-  const handleAnalyze = async () => {
-    if (!photoFile) return;
-    setAnalyzing(true);
-    setMessage(null);
+  async function loadMasters() {
     try {
-      const base64 = await fileToBase64(photoFile);
-      const res = await fetch('/api/analyze-receipt', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          imageBase64: base64,
-          mediaType: photoFile.type || 'image/jpeg',
-        }),
-      });
-      const json = await res.json();
-      if (!res.ok) throw new Error(json.error || 'AI解析失敗');
+      const [empRes, vehRes] = await Promise.all([
+        supabase.from('employees').select('*').eq('is_active', true).order('name'),
+        supabase.from('vehicles').select('*').eq('is_active', true).order('name'),
+      ]);
+      if (empRes.data) setEmployees(empRes.data);
+      if (vehRes.data) setVehicles(vehRes.data);
 
-      const d = json.data || {};
-      setForm((f) => ({
-        ...f,
-        liters: d.liters != null ? String(d.liters) : f.liters,
-        price_per_liter:
-          d.price_per_liter != null
-            ? String(d.price_per_liter)
-            : f.price_per_liter,
-        total_amount:
-          d.total_amount != null ? String(d.total_amount) : f.total_amount,
-        odometer: d.odometer != null ? String(d.odometer) : f.odometer,
-        station_name: d.station_name || f.station_name,
-        refueled_at: d.refueled_at
-          ? toLocalInputValue(d.refueled_at)
-          : f.refueled_at,
-      }));
-      setMessage({
-        type: 'success',
-        text: 'AI読み取り完了。内容を確認してください',
-      });
-    } catch (err) {
-      setMessage({ type: 'error', text: 'AI解析失敗: ' + err.message });
-    } finally {
-      setAnalyzing(false);
-    }
-  };
-
-  const handleSave = async () => {
-    if (!vehicleId) {
-      setMessage({ type: 'error', text: '車両を選択してください' });
-      return;
-    }
-    if (!form.liters || !form.total_amount) {
-      setMessage({ type: 'error', text: '給油量と合計金額は必須です' });
-      return;
-    }
-
-    setSaving(true);
-    setMessage(null);
-    try {
-      let imageBase64 = null;
-      let imageMediaType = null;
-      if (photoFile) {
-        imageBase64 = await fileToBase64(photoFile);
-        imageMediaType = photoFile.type || 'image/jpeg';
+      // ローカルストレージから前回選択を復元
+      const savedEmpId = typeof window !== 'undefined' ? localStorage.getItem('lastEmployeeId') : null;
+      const savedVehId = typeof window !== 'undefined' ? localStorage.getItem('lastVehicleId') : null;
+      if (savedEmpId && empRes.data) {
+        const emp = empRes.data.find(e => e.id === savedEmpId);
+        if (emp) setCurrentEmployee(emp);
+      }
+      if (savedVehId && vehRes.data) {
+        const veh = vehRes.data.find(v => v.id === savedVehId);
+        if (veh) setCurrentVehicle(veh);
       }
 
-      const veh = activeVehicles.find((v) => v.id === vehicleId);
-
-      const res = await fetch('/api/save-record', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          vehicleId,
-          vehicleName: veh?.name || '',
-          plateNumber: veh?.plate_number || '',
-          driver,
-          department,
-          refueledAt: form.refueled_at,
-          liters: form.liters,
-          pricePerLiter: form.price_per_liter || null,
-          totalAmount: form.total_amount,
-          odometer: form.odometer || null,
-          stationName: form.station_name || null,
-          note: form.note || null,
-          imageBase64,
-          imageMediaType,
-        }),
-      });
-      const json = await res.json();
-      if (!res.ok) throw new Error(json.error || '保存失敗');
-
-      setMessage({ type: 'success', text: '保存しました' });
-      setPhotoFile(null);
-      setPhotoPreview(null);
-      setForm({
-        liters: '',
-        price_per_liter: '',
-        total_amount: '',
-        odometer: '',
-        refueled_at: nowLocalInput(),
-        station_name: '',
-        note: '',
-      });
-      if (fileInputRef.current) fileInputRef.current.value = '';
-      onSaved();
+      setScreen('login');
     } catch (err) {
-      setMessage({ type: 'error', text: '保存失敗: ' + err.message });
-    } finally {
-      setSaving(false);
+      console.error('Master load error', err);
+      setScreen('login');
     }
-  };
+  }
 
-  if (activeVehicles.length === 0) {
-    return (
-      <div className="rounded-2xl bg-slate-900 p-6 text-center ring-1 ring-slate-800">
-        <Car className="mx-auto mb-3 h-10 w-10 text-slate-500" />
-        <p className="text-sm text-slate-400">
-          登録済みの車両がありません。
-          <br />
-          「設定」タブから車両を追加してください。
-        </p>
-      </div>
-    );
+  function handleLogin(emp, veh) {
+    setCurrentEmployee(emp);
+    setCurrentVehicle(veh);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('lastEmployeeId', emp.id);
+      localStorage.setItem('lastVehicleId', veh.id);
+    }
+    setTab('record');
+    setScreen('app');
+  }
+
+  function handleLogout() {
+    setCurrentEmployee(null);
+    setCurrentVehicle(null);
+    setScreen('login');
+  }
+
+  if (screen === 'loading') {
+    return <div className="min-h-screen bg-slate-950 flex items-center justify-center text-slate-400">読込中...</div>;
+  }
+
+  if (screen === 'login') {
+    return <LoginScreen employees={employees} vehicles={vehicles} onLogin={handleLogin} defaultEmployee={currentEmployee} defaultVehicle={currentVehicle} />;
   }
 
   return (
-    <div className="space-y-4">
-      <section className="rounded-2xl bg-slate-900 p-4 ring-1 ring-slate-800">
-        <label className="mb-2 block text-xs font-semibold text-slate-400">
-          車両
-        </label>
-        <select
-          value={vehicleId}
-          onChange={(e) => setVehicleId(e.target.value)}
-          className="w-full rounded-xl bg-slate-800 px-4 py-3 text-base ring-1 ring-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
-        >
-          {activeVehicles.map((v) => (
-            <option key={v.id} value={v.id}>
-              {v.name}
-              {v.plate_number ? ` (${v.plate_number})` : ''}
-            </option>
-          ))}
-        </select>
-      </section>
+    <div className="min-h-screen bg-slate-950 text-slate-100 pb-20">
+      <Header employee={currentEmployee} vehicle={currentVehicle} onChangeVehicle={() => setScreen('login')} onLogout={handleLogout} />
+      
+      {tab === 'record' && <RecordScreen employee={currentEmployee} vehicle={currentVehicle} vehicles={vehicles} />}
+      {tab === 'history' && <HistoryScreen vehicles={vehicles} />}
+      {tab === 'monthly' && <MonthlyScreen vehicles={vehicles} />}
+      {tab === 'settings' && <SettingsScreen employee={currentEmployee} employees={employees} vehicles={vehicles} onReload={loadMasters} />}
+      
+      <TabBar tab={tab} setTab={setTab} />
+    </div>
+  );
+}
 
-      <section className="rounded-2xl bg-slate-900 p-4 ring-1 ring-slate-800">
-        <label className="mb-2 block text-xs font-semibold text-slate-400">
-          レシート写真
-        </label>
-        {photoPreview ? (
-          <div className="relative">
-            <img
-              src={photoPreview}
-              alt="レシート"
-              className="max-h-72 w-full rounded-xl object-contain bg-slate-800"
-            />
-            <button
-              onClick={() => {
-                setPhotoFile(null);
-                setPhotoPreview(null);
-                if (fileInputRef.current) fileInputRef.current.value = '';
-              }}
-              className="absolute right-2 top-2 rounded-full bg-slate-900/80 p-1.5 ring-1 ring-slate-700 hover:bg-slate-800"
-              aria-label="写真を削除"
-            >
-              <X className="h-4 w-4" />
-            </button>
+// ========== ログイン画面 ==========
+function LoginScreen({ employees, vehicles, onLogin, defaultEmployee, defaultVehicle }) {
+  const [selectedEmp, setSelectedEmp] = useState(defaultEmployee || null);
+  const [selectedVeh, setSelectedVeh] = useState(defaultVehicle || null);
+  const [empSearch, setEmpSearch] = useState('');
+  const [vehSearch, setVehSearch] = useState('');
+  const [showEmpList, setShowEmpList] = useState(false);
+  const [showVehList, setShowVehList] = useState(false);
+
+  const filteredEmps = employees.filter(e => 
+    !empSearch || e.name.includes(empSearch) || (e.department || '').includes(empSearch)
+  );
+  
+  const filteredVehs = vehicles.filter(v =>
+    !vehSearch || v.name.includes(vehSearch) || (v.plate_number || '').includes(vehSearch)
+  );
+  
+  // 前回車両を先頭に
+  const sortedVehs = defaultVehicle 
+    ? [defaultVehicle, ...filteredVehs.filter(v => v.id !== defaultVehicle.id)]
+    : filteredVehs;
+
+  const canStart = selectedEmp && selectedVeh;
+
+  return (
+    <div className="min-h-screen bg-slate-950 text-slate-100 p-5 flex flex-col">
+      {/* ロゴ */}
+      <div className="flex flex-col items-center mt-8 mb-10">
+        <div className="relative w-36 h-24 mb-2">
+          <Image src="/tbk-logo.png" alt="TBK" fill style={{ objectFit: 'contain' }} priority />
+        </div>
+        <div className="text-xs text-slate-500 tracking-widest">社用車 燃費管理</div>
+      </div>
+
+      {/* 社員選択 */}
+      <label className="text-xs text-slate-500 uppercase tracking-wider mb-2">お名前</label>
+      <button
+        onClick={() => setShowEmpList(!showEmpList)}
+        className="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-4 text-left text-base flex items-center justify-between mb-2 hover:border-blue-500 transition"
+      >
+        <span className={selectedEmp ? 'text-slate-100' : 'text-slate-500'}>
+          {selectedEmp ? `${selectedEmp.name} (${selectedEmp.department || '-'})` : '社員を選択してください'}
+        </span>
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className={`transition-transform ${showEmpList ? 'rotate-180' : ''}`}>
+          <polyline points="6 9 12 15 18 9"/>
+        </svg>
+      </button>
+
+      {showEmpList && (
+        <div className="bg-slate-900 border border-slate-700 rounded-xl mb-4 overflow-hidden">
+          <input
+            type="text"
+            placeholder="社員名/部署で検索..."
+            value={empSearch}
+            onChange={(e) => setEmpSearch(e.target.value)}
+            className="w-full bg-slate-800 px-4 py-3 text-sm text-slate-100 outline-none border-b border-slate-700"
+            autoFocus
+          />
+          <div className="max-h-80 overflow-y-auto">
+            {filteredEmps.length === 0 ? (
+              <div className="p-4 text-sm text-slate-500 text-center">社員が見つかりません</div>
+            ) : filteredEmps.map(emp => (
+              <button
+                key={emp.id}
+                onClick={() => { setSelectedEmp(emp); setShowEmpList(false); setEmpSearch(''); }}
+                className={`w-full text-left px-4 py-3 hover:bg-slate-800 border-b border-slate-800 last:border-0 flex items-center gap-3 ${selectedEmp?.id === emp.id ? 'bg-blue-900/30' : ''}`}
+              >
+                <div className="w-9 h-9 rounded-full bg-slate-700 flex items-center justify-center text-xs font-medium flex-shrink-0">
+                  {emp.name.split(' ')[0].slice(0, 2)}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="text-sm font-medium flex items-center gap-2">
+                    {emp.name}
+                    {emp.is_admin && <span className="text-xs bg-amber-900/50 text-amber-400 px-1.5 py-0.5 rounded">Admin</span>}
+                  </div>
+                  <div className="text-xs text-slate-500">{emp.department || '-'}</div>
+                </div>
+              </button>
+            ))}
           </div>
-        ) : (
-          <button
-            onClick={() => fileInputRef.current?.click()}
-            className="flex w-full flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed border-slate-700 py-10 text-slate-400 hover:border-slate-600 hover:text-slate-300"
-          >
-            <Camera className="h-8 w-8" />
-            <span className="text-sm">撮影 or 選択</span>
-          </button>
-        )}
-        <input
-          ref={fileInputRef}
-          type="file"
-          accept="image/*"
-          capture="environment"
-          onChange={handlePhotoChange}
-          className="hidden"
-        />
+        </div>
+      )}
 
-        {photoFile && (
-          <button
-            onClick={handleAnalyze}
-            disabled={analyzing}
-            className="mt-3 flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-purple-600 to-pink-600 py-3 text-sm font-semibold text-white transition hover:from-purple-500 hover:to-pink-500 disabled:opacity-50"
-          >
-            {analyzing ? (
-              <>
-                <Loader2 className="h-4 w-4 animate-spin" />
-                AI解析中...
-              </>
-            ) : (
-              <>
-                <Sparkles className="h-4 w-4" />
-                AIで自動読み取り
-              </>
-            )}
-          </button>
-        )}
-      </section>
+      {/* 車両選択 */}
+      <label className="text-xs text-slate-500 uppercase tracking-wider mb-2 mt-2">使う車両</label>
+      <button
+        onClick={() => setShowVehList(!showVehList)}
+        className="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-4 text-left text-base flex items-center justify-between mb-2 hover:border-blue-500 transition"
+      >
+        <span className={selectedVeh ? 'text-slate-100' : 'text-slate-500'}>
+          {selectedVeh ? `${selectedVeh.name}` : '車両を選択してください'}
+        </span>
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className={`transition-transform ${showVehList ? 'rotate-180' : ''}`}>
+          <polyline points="6 9 12 15 18 9"/>
+        </svg>
+      </button>
 
-      <section className="space-y-3 rounded-2xl bg-slate-900 p-4 ring-1 ring-slate-800">
-        <FormRow
-          label="給油量 (L) *"
-          value={form.liters}
-          onChange={(v) => setForm({ ...form, liters: v })}
-          type="number"
-          inputMode="decimal"
-          step="0.01"
-          placeholder="35.42"
-        />
-        <FormRow
-          label="単価 (円/L)"
-          value={form.price_per_liter}
-          onChange={(v) => setForm({ ...form, price_per_liter: v })}
-          type="number"
-          inputMode="decimal"
-          step="0.1"
-          placeholder="172.5"
-        />
-        <FormRow
-          label="合計金額 (円) *"
-          value={form.total_amount}
-          onChange={(v) => setForm({ ...form, total_amount: v })}
-          type="number"
-          inputMode="numeric"
-          placeholder="6111"
-        />
-        <FormRow
-          label="走行距離 (km)"
-          value={form.odometer}
-          onChange={(v) => setForm({ ...form, odometer: v })}
-          type="number"
-          inputMode="numeric"
-          placeholder="12345"
-        />
-        <FormRow
-          label="給油日時 *"
-          value={form.refueled_at}
-          onChange={(v) => setForm({ ...form, refueled_at: v })}
-          type="datetime-local"
-        />
-        <FormRow
-          label="給油所"
-          value={form.station_name}
-          onChange={(v) => setForm({ ...form, station_name: v })}
-          placeholder="ENEOS 秋田中央SS"
-        />
-        <FormRow
-          label="メモ"
-          value={form.note}
-          onChange={(v) => setForm({ ...form, note: v })}
-          placeholder="任意"
-        />
-      </section>
+      {showVehList && (
+        <div className="bg-slate-900 border border-slate-700 rounded-xl mb-4 overflow-hidden">
+          <input
+            type="text"
+            placeholder="車種/ナンバーで検索..."
+            value={vehSearch}
+            onChange={(e) => setVehSearch(e.target.value)}
+            className="w-full bg-slate-800 px-4 py-3 text-sm text-slate-100 outline-none border-b border-slate-700"
+            autoFocus
+          />
+          <div className="max-h-80 overflow-y-auto">
+            {sortedVehs.length === 0 ? (
+              <div className="p-4 text-sm text-slate-500 text-center">車両が見つかりません</div>
+            ) : sortedVehs.map((veh, idx) => (
+              <button
+                key={veh.id}
+                onClick={() => { setSelectedVeh(veh); setShowVehList(false); setVehSearch(''); }}
+                className={`w-full text-left px-4 py-3 hover:bg-slate-800 border-b border-slate-800 last:border-0 flex items-center gap-3 ${selectedVeh?.id === veh.id ? 'bg-blue-900/30' : ''}`}
+              >
+                <div className={`w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0 ${defaultVehicle?.id === veh.id && idx === 0 ? 'bg-blue-800' : 'bg-slate-800'}`}>
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M5 17a2 2 0 104 0 2 2 0 00-4 0zM15 17a2 2 0 104 0 2 2 0 00-4 0zM1 9h18l2 6v2H3v-2zM3 9l2-4h12l2 4"/>
+                  </svg>
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="text-sm font-medium flex items-center gap-2">
+                    {veh.name}
+                    {defaultVehicle?.id === veh.id && idx === 0 && <span className="text-xs bg-blue-900/50 text-blue-400 px-1.5 py-0.5 rounded">前回</span>}
+                  </div>
+                  <div className="text-xs text-slate-500">{veh.plate_number || 'ナンバー未登録'}</div>
+                </div>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
 
-      {message && (
-        <div
-          className={`flex items-center gap-2 rounded-xl px-4 py-3 text-sm ${
-            message.type === 'success'
-              ? 'bg-emerald-950 text-emerald-300 ring-1 ring-emerald-800'
-              : 'bg-red-950 text-red-300 ring-1 ring-red-800'
-          }`}
-        >
-          {message.type === 'success' ? (
-            <Check className="h-4 w-4 shrink-0" />
+      {/* 開始ボタン */}
+      <button
+        onClick={() => canStart && onLogin(selectedEmp, selectedVeh)}
+        disabled={!canStart}
+        className={`w-full rounded-xl py-4 text-base font-medium mt-auto ${canStart ? 'bg-blue-600 hover:bg-blue-500 text-white' : 'bg-slate-800 text-slate-600'}`}
+      >
+        はじめる
+      </button>
+      <div className="text-center text-xs text-slate-600 mt-3">※ パスワードは不要です</div>
+    </div>
+  );
+}
+
+// ========== ヘッダー ==========
+function Header({ employee, vehicle, onChangeVehicle, onLogout }) {
+  return (
+    <div className="bg-slate-900 border-b border-slate-800 px-4 py-3 flex items-center justify-between sticky top-0 z-10">
+      <div className="flex items-center gap-3 min-w-0">
+        <div className="relative w-9 h-9 flex-shrink-0">
+          <Image src="/tbk-logo.png" alt="TBK" fill style={{ objectFit: 'contain' }} />
+        </div>
+        <div className="min-w-0">
+          <div className="text-sm font-medium truncate">{vehicle?.name}</div>
+          <div className="text-xs text-slate-500 truncate">{employee?.name} / {employee?.department || '-'}</div>
+        </div>
+      </div>
+      <div className="flex items-center gap-2 flex-shrink-0">
+        <button onClick={onChangeVehicle} className="text-xs text-blue-400 px-2 py-1">変更</button>
+        <button onClick={onLogout} className="text-slate-400" title="ログアウト">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4M16 17l5-5-5-5M21 12H9"/></svg>
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ========== 給油記録画面 ==========
+function RecordScreen({ employee, vehicle, vehicles }) {
+  const [receiptImage, setReceiptImage] = useState(null);
+  const [meterImage, setMeterImage] = useState(null);
+  const [analyzing, setAnalyzing] = useState(false);
+  const [aiError, setAiError] = useState(null);
+
+  // フォーム
+  const [liters, setLiters] = useState('');
+  const [unitPrice, setUnitPrice] = useState('');
+  const [totalAmount, setTotalAmount] = useState('');
+  const [odometer, setOdometer] = useState('');
+  const [datetime, setDatetime] = useState(() => {
+    const now = new Date();
+    return new Date(now.getTime() - now.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+  });
+  const [stationName, setStationName] = useState('');
+  const [memo, setMemo] = useState('');
+  
+  const [lastOdometer, setLastOdometer] = useState(null);
+  const [saving, setSaving] = useState(false);
+  const [saveMsg, setSaveMsg] = useState(null);
+
+  // 前回オドメーター取得
+  useEffect(() => {
+    if (!vehicle?.id) return;
+    supabase
+      .from('fuel_records')
+      .select('odometer')
+      .eq('vehicle_id', vehicle.id)
+      .order('datetime', { ascending: false })
+      .limit(1)
+      .then(({ data }) => {
+        if (data && data[0]) setLastOdometer(data[0].odometer);
+      });
+  }, [vehicle?.id]);
+
+  // 自動計算
+  const distance = (odometer && lastOdometer) ? Math.max(0, Number(odometer) - lastOdometer) : null;
+  const mileage = (distance && liters && Number(liters) > 0) ? (distance / Number(liters)).toFixed(2) : null;
+
+  async function handleImageChange(e, which) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    try {
+      const compressed = await compressImage(file);
+      if (which === 'receipt') setReceiptImage(compressed);
+      else setMeterImage(compressed);
+    } catch (err) {
+      alert('画像の読み込みに失敗しました');
+    }
+  }
+
+  async function handleAnalyze() {
+    if (!receiptImage) { alert('レシート画像を先に選択してください'); return; }
+    setAnalyzing(true);
+    setAiError(null);
+    try {
+      const res = await fetch('/api/analyze-receipt', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ imageBase64: receiptImage }),
+      });
+      const json = await res.json();
+      if (!res.ok || !json.success) {
+        throw new Error(json.error || 'AI解析失敗');
+      }
+      const { liters: l, unitPrice: u, totalAmount: t, stationName: s, datetime: d } = json.data;
+      if (l != null) setLiters(String(l));
+      if (u != null) setUnitPrice(String(u));
+      if (t != null) setTotalAmount(String(t));
+      if (s) setStationName(s);
+      if (d) setDatetime(d);
+    } catch (err) {
+      setAiError(err.message);
+    } finally {
+      setAnalyzing(false);
+    }
+  }
+
+  async function handleSave() {
+    if (!totalAmount) { alert('合計金額は必須です'); return; }
+    setSaving(true);
+    setSaveMsg(null);
+    try {
+      const { error } = await supabase.from('fuel_records').insert({
+        vehicle_id: vehicle.id,
+        employee_id: employee.id,
+        driver_name: employee.name,
+        department: employee.department,
+        datetime,
+        liters: liters ? Number(liters) : null,
+        unit_price: unitPrice ? Number(unitPrice) : null,
+        total_amount: Number(totalAmount),
+        odometer: odometer ? Number(odometer) : null,
+        distance: distance,
+        mileage: mileage ? Number(mileage) : null,
+        station_name: stationName || null,
+        memo: memo || null,
+        receipt_image: receiptImage,
+        meter_image: meterImage,
+      });
+      if (error) throw error;
+      setSaveMsg({ type: 'success', text: '保存しました!' });
+      // フォームリセット
+      setReceiptImage(null); setMeterImage(null);
+      setLiters(''); setUnitPrice(''); setTotalAmount('');
+      setOdometer(''); setStationName(''); setMemo('');
+      // オドメーター更新
+      if (odometer) setLastOdometer(Number(odometer));
+    } catch (err) {
+      setSaveMsg({ type: 'error', text: err.message });
+    } finally {
+      setSaving(false);
+      setTimeout(() => setSaveMsg(null), 4000);
+    }
+  }
+
+  return (
+    <div className="p-4 max-w-xl mx-auto">
+      {/* 写真2つ */}
+      <div className="grid grid-cols-2 gap-3 mb-4">
+        <label className="bg-slate-900 border border-slate-700 rounded-xl p-3 flex flex-col items-center justify-center h-32 cursor-pointer hover:border-blue-500 transition">
+          {receiptImage ? (
+            <img src={receiptImage} alt="レシート" className="max-h-full max-w-full object-contain rounded" />
           ) : (
-            <X className="h-4 w-4 shrink-0" />
+            <>
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="mb-1 text-slate-500">
+                <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/>
+              </svg>
+              <div className="text-xs text-slate-400">レシート</div>
+            </>
           )}
-          <span>{message.text}</span>
+          <input type="file" accept="image/*" capture="environment" onChange={(e) => handleImageChange(e, 'receipt')} className="hidden" />
+        </label>
+        <label className="bg-slate-900 border border-slate-700 rounded-xl p-3 flex flex-col items-center justify-center h-32 cursor-pointer hover:border-blue-500 transition">
+          {meterImage ? (
+            <img src={meterImage} alt="メーター" className="max-h-full max-w-full object-contain rounded" />
+          ) : (
+            <>
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="mb-1 text-slate-500">
+                <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
+              </svg>
+              <div className="text-xs text-slate-400">メーター</div>
+            </>
+          )}
+          <input type="file" accept="image/*" capture="environment" onChange={(e) => handleImageChange(e, 'meter')} className="hidden" />
+        </label>
+      </div>
+
+      {/* AI解析ボタン */}
+      <button
+        onClick={handleAnalyze}
+        disabled={!receiptImage || analyzing}
+        className={`w-full rounded-xl py-3 text-sm font-medium mb-4 flex items-center justify-center gap-2 ${receiptImage && !analyzing ? 'bg-blue-600 hover:bg-blue-500 text-white' : 'bg-slate-800 text-slate-500'}`}
+      >
+        {analyzing ? '解析中...' : '✨ AIでレシートを読み取る'}
+      </button>
+
+      {aiError && (
+        <div className="bg-red-950/30 border border-red-900 rounded-xl p-3 mb-4 text-sm text-red-300">
+          AI解析失敗: {aiError}
+        </div>
+      )}
+
+      {/* 入力フォーム */}
+      <div className="space-y-3 mb-4">
+        <FormField label="給油量 (L)" value={liters} onChange={setLiters} type="number" step="0.01" placeholder="35.42" />
+        <FormField label="単価 (円/L)" value={unitPrice} onChange={setUnitPrice} type="number" step="0.01" placeholder="172.5" />
+        <FormField label="合計金額 (円) *" value={totalAmount} onChange={setTotalAmount} type="number" placeholder="6111" required />
+        <FormField label="オドメーター (km)" value={odometer} onChange={setOdometer} type="number" placeholder="12345" />
+        
+        {lastOdometer && (
+          <div className="text-xs text-slate-500 -mt-1">前回: {lastOdometer.toLocaleString()} km</div>
+        )}
+
+        <FormField label="給油日時 *" value={datetime} onChange={setDatetime} type="datetime-local" required />
+        <FormField label="給油所" value={stationName} onChange={setStationName} placeholder="ENEOS 秋田中央SS" />
+        <FormField label="メモ" value={memo} onChange={setMemo} placeholder="任意" />
+      </div>
+
+      {/* 自動計算カード */}
+      {(distance !== null || mileage !== null) && (
+        <div className="grid grid-cols-2 gap-3 mb-4">
+          <div className="bg-slate-900 border border-slate-800 rounded-xl p-3">
+            <div className="text-xs text-slate-500">今回の走行距離</div>
+            <div className="text-lg font-medium mt-1">{distance !== null ? `${distance.toLocaleString()} km` : '—'}</div>
+          </div>
+          <div className="bg-slate-900 border border-slate-800 rounded-xl p-3">
+            <div className="text-xs text-slate-500">今回の燃費</div>
+            <div className="text-lg font-medium mt-1">{mileage ? `${mileage} km/L` : '—'}</div>
+          </div>
+        </div>
+      )}
+
+      {saveMsg && (
+        <div className={`rounded-xl p-3 mb-4 text-sm ${saveMsg.type === 'success' ? 'bg-green-950/30 border border-green-900 text-green-300' : 'bg-red-950/30 border border-red-900 text-red-300'}`}>
+          {saveMsg.text}
         </div>
       )}
 
       <button
         onClick={handleSave}
         disabled={saving}
-        className="flex w-full items-center justify-center gap-2 rounded-xl bg-blue-600 py-4 text-base font-semibold text-white shadow-lg shadow-blue-900/30 transition hover:bg-blue-500 disabled:opacity-50"
+        className={`w-full rounded-xl py-4 text-base font-medium ${saving ? 'bg-slate-800 text-slate-500' : 'bg-blue-600 hover:bg-blue-500 text-white'}`}
       >
-        {saving ? (
-          <>
-            <Loader2 className="h-5 w-5 animate-spin" />
-            保存中...
-          </>
-        ) : (
-          '保存する'
-        )}
+        {saving ? '保存中...' : '保存する'}
       </button>
     </div>
   );
 }
 
-function HistoryTab({ records }) {
-  if (records.length === 0) {
-    return (
-      <div className="rounded-2xl bg-slate-900 p-6 text-center ring-1 ring-slate-800">
-        <History className="mx-auto mb-3 h-10 w-10 text-slate-500" />
-        <p className="text-sm text-slate-400">まだ記録がありません</p>
+// ========== フォームフィールド ==========
+function FormField({ label, value, onChange, type = 'text', step, placeholder, required }) {
+  return (
+    <div>
+      <label className="text-xs text-slate-500 mb-1 block">{label}</label>
+      <input
+        type={type}
+        step={step}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder={placeholder}
+        required={required}
+        className="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-3 text-base text-slate-100 outline-none focus:border-blue-500"
+      />
+    </div>
+  );
+}
+
+// ========== 履歴画面 ==========
+function HistoryScreen({ vehicles }) {
+  const [records, setRecords] = useState([]);
+  const [filterVehicleId, setFilterVehicleId] = useState('all');
+  const [filterMonth, setFilterMonth] = useState('all'); // YYYY-MM or 'all'
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => { loadRecords(); }, [filterVehicleId, filterMonth]);
+
+  async function loadRecords() {
+    setLoading(true);
+    let q = supabase.from('fuel_records').select('*').order('datetime', { ascending: false }).limit(200);
+    if (filterVehicleId !== 'all') q = q.eq('vehicle_id', filterVehicleId);
+    if (filterMonth !== 'all') {
+      const [y, m] = filterMonth.split('-').map(Number);
+      const start = new Date(y, m - 1, 1).toISOString();
+      const end = new Date(y, m, 1).toISOString();
+      q = q.gte('datetime', start).lt('datetime', end);
+    }
+    const { data } = await q;
+    setRecords(data || []);
+    setLoading(false);
+  }
+
+  // 月別グルーピング
+  const grouped = records.reduce((acc, r) => {
+    const key = r.datetime ? r.datetime.slice(0, 7) : 'unknown';
+    if (!acc[key]) acc[key] = [];
+    acc[key].push(r);
+    return acc;
+  }, {});
+
+  return (
+    <div className="p-4 max-w-xl mx-auto">
+      <div className="flex gap-2 mb-4">
+        <select value={filterVehicleId} onChange={e => setFilterVehicleId(e.target.value)} className="flex-1 bg-slate-900 border border-slate-700 rounded-xl px-3 py-3 text-sm">
+          <option value="all">全車両</option>
+          {vehicles.map(v => <option key={v.id} value={v.id}>{v.name}</option>)}
+        </select>
+        <select value={filterMonth} onChange={e => setFilterMonth(e.target.value)} className="flex-1 bg-slate-900 border border-slate-700 rounded-xl px-3 py-3 text-sm">
+          <option value="all">全期間</option>
+          {Object.keys(grouped).sort().reverse().map(m => <option key={m} value={m}>{m}</option>)}
+        </select>
       </div>
-    );
+
+      {loading && <div className="text-center text-slate-500 py-8">読込中...</div>}
+      {!loading && records.length === 0 && <div className="text-center text-slate-500 py-8">記録がありません</div>}
+
+      {Object.entries(grouped).sort(([a], [b]) => b.localeCompare(a)).map(([month, recs]) => {
+        const totalDist = recs.reduce((s, r) => s + (r.distance || 0), 0);
+        const totalAmount = recs.reduce((s, r) => s + (r.total_amount || 0), 0);
+        const totalLiters = recs.reduce((s, r) => s + (r.liters || 0), 0);
+        const avgMileage = totalLiters > 0 ? (totalDist / totalLiters).toFixed(2) : '—';
+        return (
+          <div key={month} className="mb-6">
+            <div className="bg-slate-900 border border-slate-800 rounded-xl p-4 mb-2">
+              <div className="text-xs text-slate-500 mb-1">{month}</div>
+              <div className="text-2xl font-medium mb-2">{totalDist.toLocaleString()} km</div>
+              <div className="flex gap-4 text-xs text-slate-400">
+                <span>¥{totalAmount.toLocaleString()}</span>
+                <span>{totalLiters.toFixed(1)}L</span>
+                <span>平均 {avgMileage} km/L</span>
+              </div>
+            </div>
+            {recs.map(r => {
+              const veh = vehicles.find(v => v.id === r.vehicle_id);
+              return (
+                <div key={r.id} className="bg-slate-900 border border-slate-800 rounded-xl p-3 mb-2">
+                  <div className="flex justify-between text-xs text-slate-500 mb-1">
+                    <span>{r.datetime ? new Date(r.datetime).toLocaleString('ja-JP', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' }) : '-'}</span>
+                    <span>{veh?.name || '-'}</span>
+                  </div>
+                  <div className="flex justify-between items-center mb-2">
+                    <div className="text-base font-medium">¥{(r.total_amount || 0).toLocaleString()}</div>
+                    <div className="text-sm text-slate-400">{r.liters ? `${r.liters}L` : '-'}</div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2 text-xs">
+                    <div className="bg-slate-800 rounded px-2 py-1">走行: {r.distance ? `${r.distance} km` : '—'}</div>
+                    <div className="bg-slate-800 rounded px-2 py-1">燃費: {r.mileage ? `${r.mileage} km/L` : '—'}</div>
+                  </div>
+                  <div className="text-xs text-slate-500 mt-2">{r.driver_name || '-'} / {r.station_name || '-'}</div>
+                </div>
+              );
+            })}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+// ========== 月次集計画面(簡易) ==========
+function MonthlyScreen({ vehicles }) {
+  const [month, setMonth] = useState(() => new Date().toISOString().slice(0, 7));
+  const [records, setRecords] = useState([]);
+
+  useEffect(() => {
+    const [y, m] = month.split('-').map(Number);
+    const start = new Date(y, m - 1, 1).toISOString();
+    const end = new Date(y, m, 1).toISOString();
+    supabase.from('fuel_records').select('*').gte('datetime', start).lt('datetime', end)
+      .then(({ data }) => setRecords(data || []));
+  }, [month]);
+
+  const totalDist = records.reduce((s, r) => s + (r.distance || 0), 0);
+  const totalAmount = records.reduce((s, r) => s + (r.total_amount || 0), 0);
+  const totalLiters = records.reduce((s, r) => s + (r.liters || 0), 0);
+  const avgMileage = totalLiters > 0 ? (totalDist / totalLiters).toFixed(2) : '—';
+
+  // 車両別
+  const byVehicle = {};
+  records.forEach(r => {
+    if (!byVehicle[r.vehicle_id]) byVehicle[r.vehicle_id] = { dist: 0, amount: 0, liters: 0 };
+    byVehicle[r.vehicle_id].dist += r.distance || 0;
+    byVehicle[r.vehicle_id].amount += r.total_amount || 0;
+    byVehicle[r.vehicle_id].liters += r.liters || 0;
+  });
+
+  return (
+    <div className="p-4 max-w-xl mx-auto">
+      <input type="month" value={month} onChange={e => setMonth(e.target.value)} className="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-3 text-base mb-4" />
+      
+      <div className="grid grid-cols-2 gap-3 mb-4">
+        <MetricCard label="月間走行距離" value={`${totalDist.toLocaleString()} km`} />
+        <MetricCard label="月間費用" value={`¥${totalAmount.toLocaleString()}`} />
+        <MetricCard label="月間給油量" value={`${totalLiters.toFixed(1)} L`} />
+        <MetricCard label="月平均燃費" value={`${avgMileage} km/L`} />
+      </div>
+
+      <div className="text-xs text-slate-500 uppercase tracking-wider mb-2">車両別</div>
+      {Object.entries(byVehicle).sort(([,a], [,b]) => b.dist - a.dist).map(([vid, d]) => {
+        const veh = vehicles.find(v => v.id === vid);
+        return (
+          <div key={vid} className="bg-slate-900 border border-slate-800 rounded-xl p-3 mb-2 flex items-center justify-between">
+            <div>
+              <div className="text-sm font-medium">{veh?.name || '不明'}</div>
+              <div className="text-xs text-slate-500">¥{d.amount.toLocaleString()} / {d.liters.toFixed(1)}L</div>
+            </div>
+            <div className="text-base font-medium">{d.dist.toLocaleString()} km</div>
+          </div>
+        );
+      })}
+      
+      {records.length === 0 && <div className="text-center text-slate-500 py-8">この月の記録はありません</div>}
+    </div>
+  );
+}
+
+function MetricCard({ label, value }) {
+  return (
+    <div className="bg-slate-900 border border-slate-800 rounded-xl p-3">
+      <div className="text-xs text-slate-500">{label}</div>
+      <div className="text-lg font-medium mt-1">{value}</div>
+    </div>
+  );
+}
+
+// ========== 設定画面 ==========
+function SettingsScreen({ employee, employees, vehicles, onReload }) {
+  const [mode, setMode] = useState('menu'); // menu/employees/vehicles
+  
+  if (mode === 'employees') return <EmployeeManagement onBack={() => setMode('menu')} onReload={onReload} employees={employees} />;
+  if (mode === 'vehicles') return <VehicleManagement onBack={() => setMode('menu')} onReload={onReload} vehicles={vehicles} />;
+
+  return (
+    <div className="p-4 max-w-xl mx-auto">
+      <div className="text-xs text-slate-500 uppercase tracking-wider mb-3">全員</div>
+      <button onClick={() => setMode('vehicles')} className="w-full bg-slate-900 border border-slate-800 rounded-xl p-4 flex items-center justify-between mb-2 hover:border-slate-700">
+        <div className="flex items-center gap-3">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M5 17a2 2 0 104 0 2 2 0 00-4 0zM15 17a2 2 0 104 0 2 2 0 00-4 0zM1 9h18l2 6v2H3v-2zM3 9l2-4h12l2 4"/></svg>
+          <span className="text-sm">車両管理</span>
+        </div>
+        <span className="text-xs text-slate-500">{vehicles.length}台 ›</span>
+      </button>
+
+      {employee?.is_admin && (
+        <>
+          <div className="text-xs text-amber-500 uppercase tracking-wider mb-3 mt-6 flex items-center gap-2">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 1a3 3 0 00-3 3v8a3 3 0 006 0V4a3 3 0 00-3-3zM19 10v2a7 7 0 01-14 0v-2M12 19v4M8 23h8"/></svg>
+            アドミン機能
+          </div>
+          <button onClick={() => setMode('employees')} className="w-full bg-slate-900 border border-slate-800 rounded-xl p-4 flex items-center justify-between mb-2 hover:border-slate-700">
+            <div className="flex items-center gap-3">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75"/><circle cx="9" cy="7" r="4"/></svg>
+              <span className="text-sm">社員管理</span>
+            </div>
+            <span className="text-xs text-slate-500">{employees.length}名 ›</span>
+          </button>
+        </>
+      )}
+    </div>
+  );
+}
+
+// ========== 社員管理 ==========
+function EmployeeManagement({ onBack, onReload, employees }) {
+  const [addName, setAddName] = useState('');
+  const [addDept, setAddDept] = useState('ライフデザイン部');
+  const [addAdmin, setAddAdmin] = useState(false);
+  const [adding, setAdding] = useState(false);
+
+  async function handleAdd() {
+    if (!addName.trim()) { alert('名前を入力してください'); return; }
+    setAdding(true);
+    const { error } = await supabase.from('employees').insert({
+      name: addName.trim(),
+      department: addDept,
+      is_active: true,
+      is_admin: addAdmin,
+    });
+    setAdding(false);
+    if (error) { alert('エラー: ' + error.message); return; }
+    setAddName(''); setAddAdmin(false);
+    onReload();
+  }
+
+  async function handleDeactivate(emp) {
+    if (!confirm(`${emp.name} を退職扱いにしますか?(過去データは保持されます)`)) return;
+    await supabase.from('employees').update({ is_active: false }).eq('id', emp.id);
+    onReload();
+  }
+
+  async function handleToggleAdmin(emp) {
+    await supabase.from('employees').update({ is_admin: !emp.is_admin }).eq('id', emp.id);
+    onReload();
   }
 
   return (
-    <div className="space-y-3">
-      {records.map((r) => (
-        <div
-          key={r.id}
-          className="rounded-2xl bg-slate-900 p-4 ring-1 ring-slate-800"
-        >
-          <div className="mb-2 flex items-start justify-between">
+    <div className="p-4 max-w-xl mx-auto">
+      <button onClick={onBack} className="text-sm text-blue-400 mb-4">‹ 戻る</button>
+      <h2 className="text-lg font-medium mb-4">社員管理</h2>
+
+      <div className="bg-slate-900 border border-slate-800 rounded-xl p-4 mb-6">
+        <div className="text-xs text-slate-500 uppercase mb-2">新規追加</div>
+        <input value={addName} onChange={e => setAddName(e.target.value)} placeholder="社員名" className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm mb-2" />
+        <select value={addDept} onChange={e => setAddDept(e.target.value)} className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm mb-2">
+          <option>ライフデザイン部</option>
+          <option>エンジニアリング部</option>
+          <option>不動産部</option>
+          <option>総務部</option>
+          <option>その他</option>
+        </select>
+        <label className="flex items-center gap-2 text-sm mb-3">
+          <input type="checkbox" checked={addAdmin} onChange={e => setAddAdmin(e.target.checked)} />
+          アドミン権限を付与
+        </label>
+        <button onClick={handleAdd} disabled={adding} className="w-full bg-blue-600 text-white rounded-lg py-2 text-sm">
+          {adding ? '追加中...' : '追加'}
+        </button>
+      </div>
+
+      <div className="text-xs text-slate-500 uppercase mb-2">現在の社員({employees.length}名)</div>
+      {employees.map(emp => (
+        <div key={emp.id} className="bg-slate-900 border border-slate-800 rounded-xl p-3 mb-2 flex items-center justify-between">
+          <div className="flex-1 min-w-0">
+            <div className="text-sm font-medium flex items-center gap-2">
+              {emp.name}
+              {emp.is_admin && <span className="text-xs bg-amber-900/50 text-amber-400 px-1.5 py-0.5 rounded">Admin</span>}
+            </div>
+            <div className="text-xs text-slate-500">{emp.department}</div>
+          </div>
+          <div className="flex gap-1">
+            <button onClick={() => handleToggleAdmin(emp)} className="text-xs text-slate-400 px-2 py-1">
+              {emp.is_admin ? '権限解除' : 'Admin付与'}
+            </button>
+            <button onClick={() => handleDeactivate(emp)} className="text-xs text-red-400 px-2 py-1">退職</button>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// ========== 車両管理 ==========
+function VehicleManagement({ onBack, onReload, vehicles }) {
+  const [editing, setEditing] = useState(null);
+  const [addName, setAddName] = useState('');
+  const [addPlate, setAddPlate] = useState('');
+
+  async function handleAdd() {
+    if (!addName.trim()) { alert('車両名を入力してください'); return; }
+    const { error } = await supabase.from('vehicles').insert({
+      name: addName.trim(),
+      plate_number: addPlate.trim() || '',
+      fuel_type: 'gasoline',
+      is_active: true,
+    });
+    if (error) { alert('エラー: ' + error.message); return; }
+    setAddName(''); setAddPlate('');
+    onReload();
+  }
+
+  async function handleUpdate(veh, field, value) {
+    await supabase.from('vehicles').update({ [field]: value }).eq('id', veh.id);
+    onReload();
+  }
+
+  async function handleDeactivate(veh) {
+    if (!confirm(`${veh.name} を無効化しますか?`)) return;
+    await supabase.from('vehicles').update({ is_active: false }).eq('id', veh.id);
+    onReload();
+  }
+
+  return (
+    <div className="p-4 max-w-xl mx-auto">
+      <button onClick={onBack} className="text-sm text-blue-400 mb-4">‹ 戻る</button>
+      <h2 className="text-lg font-medium mb-4">車両管理</h2>
+
+      <div className="bg-slate-900 border border-slate-800 rounded-xl p-4 mb-6">
+        <div className="text-xs text-slate-500 uppercase mb-2">新規追加</div>
+        <input value={addName} onChange={e => setAddName(e.target.value)} placeholder="車両名 例: アクア(山田)" className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm mb-2" />
+        <input value={addPlate} onChange={e => setAddPlate(e.target.value)} placeholder="ナンバー 例: 秋田 301 ち 117" className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm mb-3" />
+        <button onClick={handleAdd} className="w-full bg-blue-600 text-white rounded-lg py-2 text-sm">追加</button>
+      </div>
+
+      <div className="text-xs text-slate-500 uppercase mb-2">登録車両({vehicles.length}台)</div>
+      {vehicles.map(veh => (
+        <div key={veh.id} className="bg-slate-900 border border-slate-800 rounded-xl p-3 mb-2">
+          {editing === veh.id ? (
             <div>
-              <div className="text-xs text-slate-500">
-                {formatJa(r.refueled_at)}
-              </div>
-              <div className="text-sm font-semibold">
-                {r.vehicles?.name || '(車両削除済)'}
-              </div>
+              <input defaultValue={veh.name} onBlur={e => handleUpdate(veh, 'name', e.target.value)} className="w-full bg-slate-800 rounded px-2 py-1 text-sm mb-1" />
+              <input defaultValue={veh.plate_number || ''} onBlur={e => handleUpdate(veh, 'plate_number', e.target.value)} placeholder="ナンバー" className="w-full bg-slate-800 rounded px-2 py-1 text-xs mb-2" />
+              <button onClick={() => setEditing(null)} className="text-xs text-blue-400">完了</button>
             </div>
-            <div className="text-right">
-              <div className="text-base font-bold tabular-nums">
-                ¥{Number(r.total_amount).toLocaleString()}
+          ) : (
+            <div className="flex items-center justify-between">
+              <div className="flex-1 min-w-0">
+                <div className="text-sm font-medium">{veh.name}</div>
+                <div className="text-xs text-slate-500">{veh.plate_number || 'ナンバー未登録'}</div>
               </div>
-              <div className="text-xs text-slate-400 tabular-nums">
-                {Number(r.liters).toFixed(2)}L
-                {r.price_per_liter
-                  ? ` × ¥${Number(r.price_per_liter).toFixed(1)}`
-                  : ''}
+              <div className="flex gap-1">
+                <button onClick={() => setEditing(veh.id)} className="text-xs text-blue-400 px-2 py-1">編集</button>
+                <button onClick={() => handleDeactivate(veh)} className="text-xs text-red-400 px-2 py-1">無効化</button>
               </div>
-            </div>
-          </div>
-          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-400">
-            <span>{r.driver_name}</span>
-            {r.department && <span>・{r.department}</span>}
-            {r.odometer && (
-              <span>・{Number(r.odometer).toLocaleString()}km</span>
-            )}
-            {r.station_name && <span>・{r.station_name}</span>}
-          </div>
-          {r.photo_url && (
-            <a
-              href={r.photo_url}
-              target="_blank"
-              rel="noreferrer"
-              className="mt-2 inline-flex items-center gap-1 text-xs text-blue-400 hover:text-blue-300"
-            >
-              レシート画像
-              <ExternalLink className="h-3 w-3" />
-            </a>
-          )}
-          {r.note && (
-            <div className="mt-2 rounded-lg bg-slate-800 px-3 py-2 text-xs text-slate-300">
-              {r.note}
             </div>
           )}
         </div>
@@ -676,331 +857,22 @@ function HistoryTab({ records }) {
   );
 }
 
-function SummaryTab({ records, vehicles }) {
-  const summary = useMemo(() => {
-    const map = new Map();
-    for (const r of records) {
-      const d = new Date(r.refueled_at);
-      const ym = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(
-        2,
-        '0'
-      )}`;
-      const vid = r.vehicle_id;
-      const key = `${ym}__${vid}`;
-      if (!map.has(key)) {
-        map.set(key, {
-          ym,
-          vehicle_id: vid,
-          vehicle_name: r.vehicles?.name || '(不明)',
-          total_liters: 0,
-          total_amount: 0,
-          count: 0,
-          max_odometer: null,
-          min_odometer: null,
-        });
-      }
-      const o = map.get(key);
-      o.total_liters += Number(r.liters) || 0;
-      o.total_amount += Number(r.total_amount) || 0;
-      o.count += 1;
-      const odo = r.odometer != null ? Number(r.odometer) : null;
-      if (odo != null) {
-        if (o.max_odometer == null || odo > o.max_odometer) o.max_odometer = odo;
-        if (o.min_odometer == null || odo < o.min_odometer) o.min_odometer = odo;
-      }
-    }
-    return Array.from(map.values()).sort((a, b) =>
-      a.ym === b.ym
-        ? a.vehicle_name.localeCompare(b.vehicle_name)
-        : b.ym.localeCompare(a.ym)
-    );
-  }, [records]);
-
-  const groups = useMemo(() => {
-    const g = new Map();
-    for (const s of summary) {
-      if (!g.has(s.ym)) g.set(s.ym, []);
-      g.get(s.ym).push(s);
-    }
-    return Array.from(g.entries());
-  }, [summary]);
-
-  if (groups.length === 0) {
-    return (
-      <div className="rounded-2xl bg-slate-900 p-6 text-center ring-1 ring-slate-800">
-        <BarChart3 className="mx-auto mb-3 h-10 w-10 text-slate-500" />
-        <p className="text-sm text-slate-400">まだ集計データがありません</p>
-      </div>
-    );
-  }
-
+// ========== タブバー ==========
+function TabBar({ tab, setTab }) {
+  const tabs = [
+    { id: 'record', label: '給油記録', icon: <path d="M3 22V8a2 2 0 012-2h8a2 2 0 012 2v14M7 22V10h6v12M17 10h2a2 2 0 012 2v6a2 2 0 002 2"/> },
+    { id: 'history', label: '履歴', icon: <><path d="M1 4v6h6"/><path d="M3.51 15a9 9 0 102.13-9.36L1 10"/></> },
+    { id: 'monthly', label: '月次集計', icon: <><path d="M12 20V10"/><path d="M18 20V4"/><path d="M6 20v-4"/></> },
+    { id: 'settings', label: '設定', icon: <><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 01-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09a1.65 1.65 0 00-1-1.51 1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 11-2.83-2.83l.06-.06a1.65 1.65 0 00.33-1.82 1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09a1.65 1.65 0 001.51-1 1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06a1.65 1.65 0 001.82.33h0a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51h0a1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06a1.65 1.65 0 00-.33 1.82v0a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></> },
+  ];
   return (
-    <div className="space-y-5">
-      {groups.map(([ym, list]) => {
-        const monthTotal = list.reduce((s, x) => s + x.total_amount, 0);
-        const monthLiters = list.reduce((s, x) => s + x.total_liters, 0);
-        return (
-          <section key={ym} className="space-y-2">
-            <div className="flex items-baseline justify-between px-1">
-              <h2 className="text-lg font-bold">
-                {ym.replace('-', '年')}月
-              </h2>
-              <div className="text-xs text-slate-400 tabular-nums">
-                合計 ¥{monthTotal.toLocaleString()} /{' '}
-                {monthLiters.toFixed(2)}L
-              </div>
-            </div>
-            {list.map((s) => {
-              const distance =
-                s.max_odometer != null && s.min_odometer != null
-                  ? s.max_odometer - s.min_odometer
-                  : null;
-              const km_per_l =
-                distance && s.total_liters
-                  ? distance / s.total_liters
-                  : null;
-              return (
-                <div
-                  key={s.vehicle_id + ym}
-                  className="rounded-2xl bg-slate-900 p-4 ring-1 ring-slate-800"
-                >
-                  <div className="mb-2 flex items-center justify-between">
-                    <div className="text-sm font-semibold">
-                      {s.vehicle_name}
-                    </div>
-                    <div className="text-xs text-slate-500 tabular-nums">
-                      {s.count}回給油
-                    </div>
-                  </div>
-                  <div className="grid grid-cols-3 gap-2 text-center">
-                    <Stat
-                      label="金額"
-                      value={`¥${s.total_amount.toLocaleString()}`}
-                    />
-                    <Stat
-                      label="給油量"
-                      value={`${s.total_liters.toFixed(2)}L`}
-                    />
-                    <Stat
-                      label="燃費"
-                      value={
-                        km_per_l ? `${km_per_l.toFixed(2)} km/L` : '―'
-                      }
-                    />
-                  </div>
-                </div>
-              );
-            })}
-          </section>
-        );
-      })}
+    <div className="fixed bottom-0 left-0 right-0 bg-slate-900 border-t border-slate-800 grid grid-cols-4 py-2">
+      {tabs.map(t => (
+        <button key={t.id} onClick={() => setTab(t.id)} className={`flex flex-col items-center gap-1 py-1 ${tab === t.id ? 'text-blue-400' : 'text-slate-500'}`}>
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">{t.icon}</svg>
+          <span className="text-xs">{t.label}</span>
+        </button>
+      ))}
     </div>
   );
-}
-
-function SettingsTab({ vehicles, onChanged }) {
-  const [newName, setNewName] = useState('');
-  const [newPlate, setNewPlate] = useState('');
-  const [adding, setAdding] = useState(false);
-  const [err, setErr] = useState('');
-
-  const handleAdd = async () => {
-    if (!newName.trim()) {
-      setErr('車両名は必須です');
-      return;
-    }
-    setAdding(true);
-    setErr('');
-    const { error } = await supabase.from('vehicles').insert({
-      name: newName.trim(),
-      plate_number: newPlate.trim() || null,
-      fuel_type: 'gasoline',
-      is_active: true,
-    });
-    setAdding(false);
-    if (error) {
-      setErr(error.message);
-      return;
-    }
-    setNewName('');
-    setNewPlate('');
-    onChanged();
-  };
-
-  const handleToggleActive = async (v) => {
-    await supabase
-      .from('vehicles')
-      .update({ is_active: !v.is_active })
-      .eq('id', v.id);
-    onChanged();
-  };
-
-  const handleDelete = async (v) => {
-    if (
-      !confirm(
-        `${v.name} を削除します。関連する給油記録もすべて削除されます。よろしいですか?`
-      )
-    )
-      return;
-    await supabase.from('vehicles').delete().eq('id', v.id);
-    onChanged();
-  };
-
-  return (
-    <div className="space-y-4">
-      <section className="rounded-2xl bg-slate-900 p-4 ring-1 ring-slate-800">
-        <h2 className="mb-3 text-sm font-semibold">車両を追加</h2>
-        <div className="space-y-2">
-          <input
-            value={newName}
-            onChange={(e) => setNewName(e.target.value)}
-            placeholder="車両名 (例: 社用車4号)"
-            className="w-full rounded-xl bg-slate-800 px-4 py-3 text-sm ring-1 ring-slate-700 placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
-          />
-          <input
-            value={newPlate}
-            onChange={(e) => setNewPlate(e.target.value)}
-            placeholder="ナンバー (例: 秋田 500 あ 1234)"
-            className="w-full rounded-xl bg-slate-800 px-4 py-3 text-sm ring-1 ring-slate-700 placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
-          />
-          {err && <p className="text-xs text-red-400">{err}</p>}
-          <button
-            onClick={handleAdd}
-            disabled={adding}
-            className="flex w-full items-center justify-center gap-2 rounded-xl bg-blue-600 py-2.5 text-sm font-semibold text-white hover:bg-blue-500 disabled:opacity-50"
-          >
-            <Plus className="h-4 w-4" />
-            追加
-          </button>
-        </div>
-      </section>
-
-      <section className="space-y-2">
-        <h2 className="px-1 text-sm font-semibold text-slate-400">
-          登録車両 ({vehicles.length})
-        </h2>
-        {vehicles.map((v) => (
-          <div
-            key={v.id}
-            className="flex items-center gap-3 rounded-2xl bg-slate-900 p-3 ring-1 ring-slate-800"
-          >
-            <div
-              className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg ${
-                v.is_active ? 'bg-blue-900/50' : 'bg-slate-800'
-              }`}
-            >
-              <Car
-                className={`h-5 w-5 ${
-                  v.is_active ? 'text-blue-300' : 'text-slate-500'
-                }`}
-              />
-            </div>
-            <div className="min-w-0 flex-1">
-              <div
-                className={`truncate text-sm font-semibold ${
-                  v.is_active ? 'text-slate-100' : 'text-slate-500 line-through'
-                }`}
-              >
-                {v.name}
-              </div>
-              {v.plate_number && (
-                <div className="truncate text-xs text-slate-500">
-                  {v.plate_number}
-                </div>
-              )}
-            </div>
-            <button
-              onClick={() => handleToggleActive(v)}
-              className={`rounded-lg px-2.5 py-1 text-xs ${
-                v.is_active
-                  ? 'bg-slate-800 text-slate-300 hover:bg-slate-700'
-                  : 'bg-emerald-900/50 text-emerald-300 hover:bg-emerald-900'
-              }`}
-            >
-              {v.is_active ? '停止' : '再開'}
-            </button>
-            <button
-              onClick={() => handleDelete(v)}
-              className="rounded-lg p-1.5 text-slate-500 hover:bg-red-950 hover:text-red-300"
-              aria-label="削除"
-            >
-              <Trash2 className="h-4 w-4" />
-            </button>
-          </div>
-        ))}
-      </section>
-    </div>
-  );
-}
-
-function FormRow({ label, value, onChange, type = 'text', ...rest }) {
-  return (
-    <div>
-      <label className="mb-1 block text-xs font-semibold text-slate-400">
-        {label}
-      </label>
-      <input
-        type={type}
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        className="w-full rounded-xl bg-slate-800 px-4 py-3 text-base ring-1 ring-slate-700 placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
-        {...rest}
-      />
-    </div>
-  );
-}
-
-function Stat({ label, value }) {
-  return (
-    <div className="rounded-xl bg-slate-800 px-2 py-2.5">
-      <div className="text-[10px] text-slate-500">{label}</div>
-      <div className="text-sm font-bold tabular-nums">{value}</div>
-    </div>
-  );
-}
-
-function fileToBase64(file) {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => {
-      const result = reader.result;
-      const base64 = String(result).split(',')[1];
-      resolve(base64);
-    };
-    reader.onerror = reject;
-    reader.readAsDataURL(file);
-  });
-}
-
-function nowLocalInput() {
-  const d = new Date();
-  const pad = (n) => String(n).padStart(2, '0');
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(
-    d.getHours()
-  )}:${pad(d.getMinutes())}`;
-}
-
-function toLocalInputValue(iso) {
-  try {
-    const d = new Date(iso);
-    if (isNaN(d.getTime())) return '';
-    const pad = (n) => String(n).padStart(2, '0');
-    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(
-      d.getDate()
-    )}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
-  } catch {
-    return '';
-  }
-}
-
-function formatJa(iso) {
-  try {
-    const d = new Date(iso);
-    const pad = (n) => String(n).padStart(2, '0');
-    return `${d.getFullYear()}/${pad(d.getMonth() + 1)}/${pad(
-      d.getDate()
-    )} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
-  } catch {
-    return iso;
-  }
 }
