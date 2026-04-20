@@ -338,26 +338,65 @@ function RecordScreen({ employee, vehicle, vehicles }) {
     }
   }
 
-  async function handleAnalyze() {
-    if (!receiptImage) { alert('レシート画像を先に選択してください'); return; }
+ async function handleAnalyze() {
+    if (!receiptImage && !meterImage) {
+      alert('レシートかメーター画像を先に選択してください');
+      return;
+    }
     setAnalyzing(true);
     setAiError(null);
     try {
-      const res = await fetch('/api/analyze-receipt', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ imageBase64: receiptImage }),
-      });
-      const json = await res.json();
-      if (!res.ok || !json.success) {
-        throw new Error(json.error || 'AI解析失敗');
+      // レシート + メーターを並列で解析
+      const tasks = [];
+      if (receiptImage) {
+        tasks.push(
+          fetch('/api/analyze-receipt', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ imageBase64: receiptImage, imageType: 'receipt' }),
+          }).then(r => r.json().then(j => ({ type: 'receipt', ok: r.ok, json: j })))
+        );
       }
-      const { liters: l, unitPrice: u, totalAmount: t, stationName: s, datetime: d } = json.data;
-      if (l != null) setLiters(String(l));
-      if (u != null) setUnitPrice(String(u));
-      if (t != null) setTotalAmount(String(t));
-      if (s) setStationName(s);
-      if (d) setDatetime(d);
+      if (meterImage) {
+        tasks.push(
+          fetch('/api/analyze-receipt', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ imageBase64: meterImage, imageType: 'meter' }),
+          }).then(r => r.json().then(j => ({ type: 'meter', ok: r.ok, json: j })))
+        );
+      }
+
+      const results = await Promise.all(tasks);
+      const errors = [];
+
+      for (const result of results) {
+        if (!result.ok || !result.json.success) {
+          errors.push(`${result.type === 'receipt' ? 'レシート' : 'メーター'}: ${result.json.error || 'AI解析失敗'}`);
+          continue;
+        }
+        const d = result.json.data;
+        if (result.type === 'receipt') {
+          if (d.liters != null) setLiters(String(d.liters));
+          if (d.unitPrice != null) setUnitPrice(String(d.unitPrice));
+          if (d.totalAmount != null) setTotalAmount(String(d.totalAmount));
+          if (d.stationName) setStationName(d.stationName);
+          if (d.datetime) setDatetime(d.datetime);
+        } else if (result.type === 'meter') {
+          if (d.odometer != null) setOdometer(String(d.odometer));
+          // trip A/B はメモに入れる(必要なら後で専用欄に)
+          const tripInfo = [];
+          if (d.tripA != null) tripInfo.push(`trip A: ${d.tripA} km`);
+          if (d.tripB != null) tripInfo.push(`trip B: ${d.tripB} km`);
+          if (tripInfo.length > 0) {
+            setMemo(prev => prev ? `${prev} / ${tripInfo.join(' / ')}` : tripInfo.join(' / '));
+          }
+        }
+      }
+
+      if (errors.length > 0) {
+        setAiError(errors.join(' | '));
+      }
     } catch (err) {
       setAiError(err.message);
     } finally {
