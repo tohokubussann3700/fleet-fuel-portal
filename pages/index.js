@@ -108,7 +108,7 @@ export default function Home() {
   );
 }
 
-// ========== ログイン(検索バー削除) ==========
+// ========== ログイン ==========
 function LoginScreen({ employees, vehicles, onLogin, defaultEmployee, defaultVehicle }) {
   const [selectedEmp, setSelectedEmp] = useState(defaultEmployee || null);
   const [selectedVeh, setSelectedVeh] = useState(defaultVehicle || null);
@@ -378,15 +378,15 @@ function RecordScreen({ employee, vehicle, onSaved }) {
               <button onClick={() => setReceiptImage(null)} className="absolute -top-1 -right-1 w-6 h-6 bg-slate-800 border border-slate-600 rounded-full text-slate-200 text-xs">×</button>
             </div>
           ) : (
-            <div className="grid grid-cols-2 gap-2 h-24">
-              <label className="bg-blue-950/40 border border-blue-800 rounded-lg flex flex-col items-center justify-center cursor-pointer hover:border-blue-500 transition">
-                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-blue-300 mb-0.5"><path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z"/><circle cx="12" cy="13" r="4"/></svg>
-                <div className="text-[11px] text-blue-200">撮影</div>
+            <div className="grid grid-cols-3 gap-2 h-24">
+              <label className="col-span-2 bg-blue-950/40 border border-blue-800 rounded-lg flex flex-col items-center justify-center cursor-pointer hover:border-blue-500 transition">
+                <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-blue-300 mb-1"><path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z"/><circle cx="12" cy="13" r="4"/></svg>
+                <div className="text-sm font-medium text-blue-100">撮影</div>
                 <input type="file" accept="image/*" capture="environment" onChange={(e) => handleImageChange(e, 'receipt')} className="hidden" />
               </label>
-              <label className="bg-slate-800 border border-slate-600 rounded-lg flex flex-col items-center justify-center cursor-pointer hover:border-blue-500 transition">
-                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-slate-300 mb-0.5"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
-                <div className="text-[11px] text-slate-300">選択</div>
+              <label className="bg-slate-800/60 border border-slate-700 rounded-lg flex flex-col items-center justify-center cursor-pointer hover:border-slate-500 transition">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-slate-400 mb-0.5"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+                <div className="text-[10px] text-slate-400">選択</div>
                 <input type="file" accept="image/*" onChange={(e) => handleImageChange(e, 'receipt')} className="hidden" />
               </label>
             </div>
@@ -405,21 +405,22 @@ function RecordScreen({ employee, vehicle, onSaved }) {
               <button onClick={() => setMeterImage(null)} className="absolute -top-1 -right-1 w-6 h-6 bg-slate-800 border border-slate-600 rounded-full text-slate-200 text-xs">×</button>
             </div>
           ) : (
-            <div className="grid grid-cols-2 gap-2 h-24">
-              <label className="bg-blue-950/40 border border-blue-800 rounded-lg flex flex-col items-center justify-center cursor-pointer hover:border-blue-500 transition">
-                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-blue-300 mb-0.5"><path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z"/><circle cx="12" cy="13" r="4"/></svg>
-                <div className="text-[11px] text-blue-200">撮影</div>
+            <div className="grid grid-cols-3 gap-2 h-24">
+              <label className="col-span-2 bg-blue-950/40 border border-blue-800 rounded-lg flex flex-col items-center justify-center cursor-pointer hover:border-blue-500 transition">
+                <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-blue-300 mb-1"><path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z"/><circle cx="12" cy="13" r="4"/></svg>
+                <div className="text-sm font-medium text-blue-100">撮影</div>
                 <input type="file" accept="image/*" capture="environment" onChange={(e) => handleImageChange(e, 'meter')} className="hidden" />
               </label>
-              <label className="bg-slate-800 border border-slate-600 rounded-lg flex flex-col items-center justify-center cursor-pointer hover:border-blue-500 transition">
-                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-slate-300 mb-0.5"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
-                <div className="text-[11px] text-slate-300">選択</div>
+              <label className="bg-slate-800/60 border border-slate-700 rounded-lg flex flex-col items-center justify-center cursor-pointer hover:border-slate-500 transition">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-slate-400 mb-0.5"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+                <div className="text-[10px] text-slate-400">選択</div>
                 <input type="file" accept="image/*" onChange={(e) => handleImageChange(e, 'meter')} className="hidden" />
               </label>
             </div>
           )}
         </div>
       </div>
+
       <button onClick={handleAnalyze} disabled={(!receiptImage && !meterImage) || analyzing} className={`w-full rounded-xl py-3 text-base font-medium mb-4 flex items-center justify-center gap-2 ${(receiptImage || meterImage) && !analyzing ? 'bg-blue-600 hover:bg-blue-500 text-white' : 'bg-slate-800 text-slate-400'}`}>
         {analyzing ? '解析中...' : '✨ AIで画像を読み取る'}
       </button>
@@ -528,7 +529,6 @@ function HistoryScreen({ vehicles, employees, autoOpenId, onAutoOpened }) {
     return acc;
   }, {});
 
-  // 月表示用フォーマット(2026-04 → "2026年4月")
   function formatMonth(monthStr) {
     if (!monthStr || monthStr === 'unknown') return '不明';
     const [y, m] = monthStr.split('-').map(Number);
@@ -558,7 +558,6 @@ function HistoryScreen({ vehicles, employees, autoOpenId, onAutoOpened }) {
         const avgMileage = totalLiters > 0 ? (totalDist / totalLiters).toFixed(2) : '—';
         return (
           <div key={month} className="mb-8">
-            {/* サマリーカード(強調) */}
             <div className="relative bg-gradient-to-br from-blue-950 to-slate-900 border-2 border-blue-600/50 rounded-2xl p-5 mb-4 shadow-lg shadow-blue-900/20">
               <div className="absolute top-3 right-3 text-[10px] text-blue-300 bg-blue-900/40 px-2 py-0.5 rounded">{formatMonth(month)}</div>
               <div className="text-xs text-blue-200/80 uppercase tracking-wider mb-1">今月の走行距離</div>
@@ -579,7 +578,6 @@ function HistoryScreen({ vehicles, employees, autoOpenId, onAutoOpened }) {
               </div>
             </div>
 
-            {/* 詳細レコードカード */}
             {recs.map(r => {
               const veh = vehicles.find(v => v.id === r.vehicle_id);
               return (
@@ -617,9 +615,8 @@ function HistoryScreen({ vehicles, employees, autoOpenId, onAutoOpened }) {
   );
 }
 
-// ========== 詳細・編集モーダル(新仕様) ==========
+// ========== 詳細・編集モーダル ==========
 function RecordModal({ record, vehicles, employees, onClose, onSaved }) {
-  // viewMode: 'view' (読み取り専用、変更ボタンのみ) | 'edit' (編集可能、削除・保存ボタン)
   const [viewMode, setViewMode] = useState('view');
   const initialForm = {
     datetime: record.datetime ? record.datetime.slice(0, 16) : '',
@@ -653,7 +650,6 @@ function RecordModal({ record, vehicles, employees, onClose, onSaved }) {
       .then(({ data }) => { if (data && data[0]) setLastOdometer(data[0].odometer); else setLastOdometer(null); });
   }, [form.vehicle_id, form.datetime, record.id]);
 
-  // 差分検知
   const hasChanges = JSON.stringify(form) !== JSON.stringify(initialForm);
 
   function update(key, value) {
