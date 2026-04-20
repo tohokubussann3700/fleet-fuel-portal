@@ -1,8 +1,8 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import Image from 'next/image';
 
-// ========== 画像圧縮ユーティリティ ==========
+// ========== 画像圧縮 ==========
 async function compressImage(file, maxWidth = 1200, quality = 0.8) {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
@@ -19,8 +19,7 @@ async function compressImage(file, maxWidth = 1200, quality = 0.8) {
         canvas.height = height;
         const ctx = canvas.getContext('2d');
         ctx.drawImage(img, 0, 0, width, height);
-        const dataUrl = canvas.toDataURL('image/jpeg', quality);
-        resolve(dataUrl);
+        resolve(canvas.toDataURL('image/jpeg', quality));
       };
       img.onerror = reject;
       img.src = e.target.result;
@@ -30,23 +29,16 @@ async function compressImage(file, maxWidth = 1200, quality = 0.8) {
   });
 }
 
-// ========== メインコンポーネント ==========
+// ========== メイン ==========
 export default function Home() {
-  const [screen, setScreen] = useState('loading'); // loading/login/record/history/monthly/settings
+  const [screen, setScreen] = useState('loading');
   const [tab, setTab] = useState('record');
-  
-  // ユーザー情報
-  const [currentEmployee, setCurrentEmployee] = useState(null); // {id, name, department, is_admin}
-  const [currentVehicle, setCurrentVehicle] = useState(null); // {id, name, plate_number}
-  
-  // マスターデータ
+  const [currentEmployee, setCurrentEmployee] = useState(null);
+  const [currentVehicle, setCurrentVehicle] = useState(null);
   const [employees, setEmployees] = useState([]);
   const [vehicles, setVehicles] = useState([]);
 
-  // 初期ロード
-  useEffect(() => {
-    loadMasters();
-  }, []);
+  useEffect(() => { loadMasters(); }, []);
 
   async function loadMasters() {
     try {
@@ -57,7 +49,6 @@ export default function Home() {
       if (empRes.data) setEmployees(empRes.data);
       if (vehRes.data) setVehicles(vehRes.data);
 
-      // ローカルストレージから前回選択を復元
       const savedEmpId = typeof window !== 'undefined' ? localStorage.getItem('lastEmployeeId') : null;
       const savedVehId = typeof window !== 'undefined' ? localStorage.getItem('lastVehicleId') : null;
       if (savedEmpId && empRes.data) {
@@ -68,7 +59,6 @@ export default function Home() {
         const veh = vehRes.data.find(v => v.id === savedVehId);
         if (veh) setCurrentVehicle(veh);
       }
-
       setScreen('login');
     } catch (err) {
       console.error('Master load error', err);
@@ -96,7 +86,6 @@ export default function Home() {
   if (screen === 'loading') {
     return <div className="min-h-screen bg-slate-950 flex items-center justify-center text-slate-400">読込中...</div>;
   }
-
   if (screen === 'login') {
     return <LoginScreen employees={employees} vehicles={vehicles} onLogin={handleLogin} defaultEmployee={currentEmployee} defaultVehicle={currentVehicle} />;
   }
@@ -104,18 +93,16 @@ export default function Home() {
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 pb-20">
       <Header employee={currentEmployee} vehicle={currentVehicle} onChangeVehicle={() => setScreen('login')} onLogout={handleLogout} />
-      
-      {tab === 'record' && <RecordScreen employee={currentEmployee} vehicle={currentVehicle} vehicles={vehicles} />}
-      {tab === 'history' && <HistoryScreen vehicles={vehicles} />}
+      {tab === 'record' && <RecordScreen employee={currentEmployee} vehicle={currentVehicle} />}
+      {tab === 'history' && <HistoryScreen vehicles={vehicles} employees={employees} />}
       {tab === 'monthly' && <MonthlyScreen vehicles={vehicles} />}
       {tab === 'settings' && <SettingsScreen employee={currentEmployee} employees={employees} vehicles={vehicles} onReload={loadMasters} />}
-      
       <TabBar tab={tab} setTab={setTab} />
     </div>
   );
 }
 
-// ========== ログイン画面 ==========
+// ========== ログイン ==========
 function LoginScreen({ employees, vehicles, onLogin, defaultEmployee, defaultVehicle }) {
   const [selectedEmp, setSelectedEmp] = useState(defaultEmployee || null);
   const [selectedVeh, setSelectedVeh] = useState(defaultVehicle || null);
@@ -124,24 +111,13 @@ function LoginScreen({ employees, vehicles, onLogin, defaultEmployee, defaultVeh
   const [showEmpList, setShowEmpList] = useState(false);
   const [showVehList, setShowVehList] = useState(false);
 
-  const filteredEmps = employees.filter(e => 
-    !empSearch || e.name.includes(empSearch) || (e.department || '').includes(empSearch)
-  );
-  
-  const filteredVehs = vehicles.filter(v =>
-    !vehSearch || v.name.includes(vehSearch) || (v.plate_number || '').includes(vehSearch)
-  );
-  
-  // 前回車両を先頭に
-  const sortedVehs = defaultVehicle 
-    ? [defaultVehicle, ...filteredVehs.filter(v => v.id !== defaultVehicle.id)]
-    : filteredVehs;
-
+  const filteredEmps = employees.filter(e => !empSearch || e.name.includes(empSearch) || (e.department || '').includes(empSearch));
+  const filteredVehs = vehicles.filter(v => !vehSearch || v.name.includes(vehSearch) || (v.plate_number || '').includes(vehSearch));
+  const sortedVehs = defaultVehicle ? [defaultVehicle, ...filteredVehs.filter(v => v.id !== defaultVehicle.id)] : filteredVehs;
   const canStart = selectedEmp && selectedVeh;
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 p-5 flex flex-col">
-      {/* ロゴ */}
       <div className="flex flex-col items-center mt-8 mb-10">
         <div className="relative w-36 h-24 mb-2">
           <Image src="/tbk-logo.png" alt="TBK" fill style={{ objectFit: 'contain' }} priority />
@@ -149,42 +125,23 @@ function LoginScreen({ employees, vehicles, onLogin, defaultEmployee, defaultVeh
         <div className="text-xs text-slate-500 tracking-widest">社用車 燃費管理</div>
       </div>
 
-      {/* 社員選択 */}
       <label className="text-xs text-slate-500 uppercase tracking-wider mb-2">お名前</label>
-      <button
-        onClick={() => setShowEmpList(!showEmpList)}
-        className="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-4 text-left text-base flex items-center justify-between mb-2 hover:border-blue-500 transition"
-      >
+      <button onClick={() => setShowEmpList(!showEmpList)} className="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-4 text-left text-base flex items-center justify-between mb-2 hover:border-blue-500 transition">
         <span className={selectedEmp ? 'text-slate-100' : 'text-slate-500'}>
           {selectedEmp ? `${selectedEmp.name} (${selectedEmp.department || '-'})` : '社員を選択してください'}
         </span>
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className={`transition-transform ${showEmpList ? 'rotate-180' : ''}`}>
-          <polyline points="6 9 12 15 18 9"/>
-        </svg>
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className={`transition-transform ${showEmpList ? 'rotate-180' : ''}`}><polyline points="6 9 12 15 18 9"/></svg>
       </button>
 
       {showEmpList && (
         <div className="bg-slate-900 border border-slate-700 rounded-xl mb-4 overflow-hidden">
-          <input
-            type="text"
-            placeholder="社員名/部署で検索..."
-            value={empSearch}
-            onChange={(e) => setEmpSearch(e.target.value)}
-            className="w-full bg-slate-800 px-4 py-3 text-sm text-slate-100 outline-none border-b border-slate-700"
-            autoFocus
-          />
+          <input type="text" placeholder="社員名/部署で検索..." value={empSearch} onChange={(e) => setEmpSearch(e.target.value)} className="w-full bg-slate-800 px-4 py-3 text-sm text-slate-100 outline-none border-b border-slate-700" autoFocus />
           <div className="max-h-80 overflow-y-auto">
             {filteredEmps.length === 0 ? (
               <div className="p-4 text-sm text-slate-500 text-center">社員が見つかりません</div>
             ) : filteredEmps.map(emp => (
-              <button
-                key={emp.id}
-                onClick={() => { setSelectedEmp(emp); setShowEmpList(false); setEmpSearch(''); }}
-                className={`w-full text-left px-4 py-3 hover:bg-slate-800 border-b border-slate-800 last:border-0 flex items-center gap-3 ${selectedEmp?.id === emp.id ? 'bg-blue-900/30' : ''}`}
-              >
-                <div className="w-9 h-9 rounded-full bg-slate-700 flex items-center justify-center text-xs font-medium flex-shrink-0">
-                  {emp.name.split(' ')[0].slice(0, 2)}
-                </div>
+              <button key={emp.id} onClick={() => { setSelectedEmp(emp); setShowEmpList(false); setEmpSearch(''); }} className={`w-full text-left px-4 py-3 hover:bg-slate-800 border-b border-slate-800 last:border-0 flex items-center gap-3 ${selectedEmp?.id === emp.id ? 'bg-blue-900/30' : ''}`}>
+                <div className="w-9 h-9 rounded-full bg-slate-700 flex items-center justify-center text-xs font-medium flex-shrink-0">{emp.name.split(' ')[0].slice(0, 2)}</div>
                 <div className="flex-1 min-w-0">
                   <div className="text-sm font-medium flex items-center gap-2">
                     {emp.name}
@@ -198,43 +155,20 @@ function LoginScreen({ employees, vehicles, onLogin, defaultEmployee, defaultVeh
         </div>
       )}
 
-      {/* 車両選択 */}
       <label className="text-xs text-slate-500 uppercase tracking-wider mb-2 mt-2">使う車両</label>
-      <button
-        onClick={() => setShowVehList(!showVehList)}
-        className="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-4 text-left text-base flex items-center justify-between mb-2 hover:border-blue-500 transition"
-      >
-        <span className={selectedVeh ? 'text-slate-100' : 'text-slate-500'}>
-          {selectedVeh ? `${selectedVeh.name}` : '車両を選択してください'}
-        </span>
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className={`transition-transform ${showVehList ? 'rotate-180' : ''}`}>
-          <polyline points="6 9 12 15 18 9"/>
-        </svg>
+      <button onClick={() => setShowVehList(!showVehList)} className="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-4 text-left text-base flex items-center justify-between mb-2 hover:border-blue-500 transition">
+        <span className={selectedVeh ? 'text-slate-100' : 'text-slate-500'}>{selectedVeh ? selectedVeh.name : '車両を選択してください'}</span>
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className={`transition-transform ${showVehList ? 'rotate-180' : ''}`}><polyline points="6 9 12 15 18 9"/></svg>
       </button>
 
       {showVehList && (
         <div className="bg-slate-900 border border-slate-700 rounded-xl mb-4 overflow-hidden">
-          <input
-            type="text"
-            placeholder="車種/ナンバーで検索..."
-            value={vehSearch}
-            onChange={(e) => setVehSearch(e.target.value)}
-            className="w-full bg-slate-800 px-4 py-3 text-sm text-slate-100 outline-none border-b border-slate-700"
-            autoFocus
-          />
+          <input type="text" placeholder="車種/ナンバーで検索..." value={vehSearch} onChange={(e) => setVehSearch(e.target.value)} className="w-full bg-slate-800 px-4 py-3 text-sm text-slate-100 outline-none border-b border-slate-700" autoFocus />
           <div className="max-h-80 overflow-y-auto">
-            {sortedVehs.length === 0 ? (
-              <div className="p-4 text-sm text-slate-500 text-center">車両が見つかりません</div>
-            ) : sortedVehs.map((veh, idx) => (
-              <button
-                key={veh.id}
-                onClick={() => { setSelectedVeh(veh); setShowVehList(false); setVehSearch(''); }}
-                className={`w-full text-left px-4 py-3 hover:bg-slate-800 border-b border-slate-800 last:border-0 flex items-center gap-3 ${selectedVeh?.id === veh.id ? 'bg-blue-900/30' : ''}`}
-              >
+            {sortedVehs.map((veh, idx) => (
+              <button key={veh.id} onClick={() => { setSelectedVeh(veh); setShowVehList(false); setVehSearch(''); }} className={`w-full text-left px-4 py-3 hover:bg-slate-800 border-b border-slate-800 last:border-0 flex items-center gap-3 ${selectedVeh?.id === veh.id ? 'bg-blue-900/30' : ''}`}>
                 <div className={`w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0 ${defaultVehicle?.id === veh.id && idx === 0 ? 'bg-blue-800' : 'bg-slate-800'}`}>
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                    <path d="M5 17a2 2 0 104 0 2 2 0 00-4 0zM15 17a2 2 0 104 0 2 2 0 00-4 0zM1 9h18l2 6v2H3v-2zM3 9l2-4h12l2 4"/>
-                  </svg>
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M5 17a2 2 0 104 0 2 2 0 00-4 0zM15 17a2 2 0 104 0 2 2 0 00-4 0zM1 9h18l2 6v2H3v-2zM3 9l2-4h12l2 4"/></svg>
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="text-sm font-medium flex items-center gap-2">
@@ -249,14 +183,7 @@ function LoginScreen({ employees, vehicles, onLogin, defaultEmployee, defaultVeh
         </div>
       )}
 
-      {/* 開始ボタン */}
-      <button
-        onClick={() => canStart && onLogin(selectedEmp, selectedVeh)}
-        disabled={!canStart}
-        className={`w-full rounded-xl py-4 text-base font-medium mt-auto ${canStart ? 'bg-blue-600 hover:bg-blue-500 text-white' : 'bg-slate-800 text-slate-600'}`}
-      >
-        はじめる
-      </button>
+      <button onClick={() => canStart && onLogin(selectedEmp, selectedVeh)} disabled={!canStart} className={`w-full rounded-xl py-4 text-base font-medium mt-auto ${canStart ? 'bg-blue-600 hover:bg-blue-500 text-white' : 'bg-slate-800 text-slate-600'}`}>はじめる</button>
       <div className="text-center text-xs text-slate-600 mt-3">※ パスワードは不要です</div>
     </div>
   );
@@ -285,14 +212,12 @@ function Header({ employee, vehicle, onChangeVehicle, onLogout }) {
   );
 }
 
-// ========== 給油記録画面 ==========
-function RecordScreen({ employee, vehicle, vehicles }) {
+// ========== 給油記録 ==========
+function RecordScreen({ employee, vehicle }) {
   const [receiptImage, setReceiptImage] = useState(null);
   const [meterImage, setMeterImage] = useState(null);
   const [analyzing, setAnalyzing] = useState(false);
   const [aiError, setAiError] = useState(null);
-
-  // フォーム
   const [liters, setLiters] = useState('');
   const [unitPrice, setUnitPrice] = useState('');
   const [totalAmount, setTotalAmount] = useState('');
@@ -303,26 +228,16 @@ function RecordScreen({ employee, vehicle, vehicles }) {
   });
   const [stationName, setStationName] = useState('');
   const [memo, setMemo] = useState('');
-  
   const [lastOdometer, setLastOdometer] = useState(null);
   const [saving, setSaving] = useState(false);
   const [saveMsg, setSaveMsg] = useState(null);
 
-  // 前回オドメーター取得
   useEffect(() => {
     if (!vehicle?.id) return;
-    supabase
-      .from('fuel_records')
-      .select('odometer')
-      .eq('vehicle_id', vehicle.id)
-      .order('datetime', { ascending: false })
-      .limit(1)
-      .then(({ data }) => {
-        if (data && data[0]) setLastOdometer(data[0].odometer);
-      });
+    supabase.from('fuel_records').select('odometer').eq('vehicle_id', vehicle.id).order('datetime', { ascending: false }).limit(1)
+      .then(({ data }) => { if (data && data[0]) setLastOdometer(data[0].odometer); });
   }, [vehicle?.id]);
 
-  // 自動計算
   const distance = (odometer && lastOdometer) ? Math.max(0, Number(odometer) - lastOdometer) : null;
   const mileage = (distance && liters && Number(liters) > 0) ? (distance / Number(liters)).toFixed(2) : null;
 
@@ -338,38 +253,28 @@ function RecordScreen({ employee, vehicle, vehicles }) {
     }
   }
 
- async function handleAnalyze() {
-    if (!receiptImage && !meterImage) {
-      alert('レシートかメーター画像を先に選択してください');
-      return;
-    }
+  async function handleAnalyze() {
+    if (!receiptImage && !meterImage) { alert('レシートかメーター画像を先に選択してください'); return; }
     setAnalyzing(true);
     setAiError(null);
     try {
-      // レシート + メーターを並列で解析
       const tasks = [];
       if (receiptImage) {
-        tasks.push(
-          fetch('/api/analyze-receipt', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ imageBase64: receiptImage, imageType: 'receipt' }),
-          }).then(r => r.json().then(j => ({ type: 'receipt', ok: r.ok, json: j })))
-        );
+        tasks.push(fetch('/api/analyze-receipt', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ imageBase64: receiptImage, imageType: 'receipt' }),
+        }).then(r => r.json().then(j => ({ type: 'receipt', ok: r.ok, json: j }))));
       }
       if (meterImage) {
-        tasks.push(
-          fetch('/api/analyze-receipt', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ imageBase64: meterImage, imageType: 'meter' }),
-          }).then(r => r.json().then(j => ({ type: 'meter', ok: r.ok, json: j })))
-        );
+        tasks.push(fetch('/api/analyze-receipt', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ imageBase64: meterImage, imageType: 'meter' }),
+        }).then(r => r.json().then(j => ({ type: 'meter', ok: r.ok, json: j }))));
       }
-
       const results = await Promise.all(tasks);
       const errors = [];
-
       for (const result of results) {
         if (!result.ok || !result.json.success) {
           errors.push(`${result.type === 'receipt' ? 'レシート' : 'メーター'}: ${result.json.error || 'AI解析失敗'}`);
@@ -384,19 +289,13 @@ function RecordScreen({ employee, vehicle, vehicles }) {
           if (d.datetime) setDatetime(d.datetime);
         } else if (result.type === 'meter') {
           if (d.odometer != null) setOdometer(String(d.odometer));
-          // trip A/B はメモに入れる(必要なら後で専用欄に)
           const tripInfo = [];
           if (d.tripA != null) tripInfo.push(`trip A: ${d.tripA} km`);
           if (d.tripB != null) tripInfo.push(`trip B: ${d.tripB} km`);
-          if (tripInfo.length > 0) {
-            setMemo(prev => prev ? `${prev} / ${tripInfo.join(' / ')}` : tripInfo.join(' / '));
-          }
+          if (tripInfo.length > 0) setMemo(prev => prev ? `${prev} / ${tripInfo.join(' / ')}` : tripInfo.join(' / '));
         }
       }
-
-      if (errors.length > 0) {
-        setAiError(errors.join(' | '));
-      }
+      if (errors.length > 0) setAiError(errors.join(' | '));
     } catch (err) {
       setAiError(err.message);
     } finally {
@@ -409,103 +308,85 @@ function RecordScreen({ employee, vehicle, vehicles }) {
     setSaving(true);
     setSaveMsg(null);
     try {
-      const { error } = await supabase.from('fuel_records').insert({
-        vehicle_id: vehicle.id,
-        employee_id: employee.id,
-        driver_name: employee.name,
-        department: employee.department,
-        datetime,
-        liters: liters ? Number(liters) : null,
-        unit_price: unitPrice ? Number(unitPrice) : null,
-        total_amount: Number(totalAmount),
-        odometer: odometer ? Number(odometer) : null,
-        distance: distance,
-        mileage: mileage ? Number(mileage) : null,
-        station_name: stationName || null,
-        memo: memo || null,
-        receipt_image: receiptImage,
-        meter_image: meterImage,
+      const res = await fetch('/api/save-record', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          vehicle_id: vehicle.id,
+          employee_id: employee.id,
+          driver_name: employee.name,
+          department: employee.department,
+          datetime,
+          liters: liters ? Number(liters) : null,
+          unit_price: unitPrice ? Number(unitPrice) : null,
+          total_amount: Number(totalAmount),
+          odometer: odometer ? Number(odometer) : null,
+          distance,
+          mileage: mileage ? Number(mileage) : null,
+          station_name: stationName || null,
+          memo: memo || null,
+          receipt_image: receiptImage,
+          meter_image: meterImage,
+        }),
       });
-      if (error) throw error;
-      setSaveMsg({ type: 'success', text: '保存しました!' });
-      // フォームリセット
+      const json = await res.json();
+      if (!res.ok || !json.success) throw new Error(json.error || '保存に失敗しました');
+      
+      setSaveMsg({ type: 'success', text: '保存しました!DB+Spreadsheetに反映済み' });
       setReceiptImage(null); setMeterImage(null);
       setLiters(''); setUnitPrice(''); setTotalAmount('');
       setOdometer(''); setStationName(''); setMemo('');
-      // オドメーター更新
       if (odometer) setLastOdometer(Number(odometer));
     } catch (err) {
       setSaveMsg({ type: 'error', text: err.message });
     } finally {
       setSaving(false);
-      setTimeout(() => setSaveMsg(null), 4000);
+      setTimeout(() => setSaveMsg(null), 5000);
     }
   }
 
   return (
     <div className="p-4 max-w-xl mx-auto">
-      {/* 写真2つ */}
       <div className="grid grid-cols-2 gap-3 mb-4">
         <label className="bg-slate-900 border border-slate-700 rounded-xl p-3 flex flex-col items-center justify-center h-32 cursor-pointer hover:border-blue-500 transition">
-          {receiptImage ? (
-            <img src={receiptImage} alt="レシート" className="max-h-full max-w-full object-contain rounded" />
-          ) : (
+          {receiptImage ? <img src={receiptImage} alt="レシート" className="max-h-full max-w-full object-contain rounded" /> : (
             <>
-              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="mb-1 text-slate-500">
-                <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/>
-              </svg>
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="mb-1 text-slate-500"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
               <div className="text-xs text-slate-400">レシート</div>
+              <div className="text-[10px] text-slate-600 mt-0.5">📷 or 🖼️</div>
             </>
           )}
-          <input type="file" accept="image/*" capture="environment" onChange={(e) => handleImageChange(e, 'receipt')} className="hidden" />
+          <input type="file" accept="image/*" onChange={(e) => handleImageChange(e, 'receipt')} className="hidden" />
         </label>
         <label className="bg-slate-900 border border-slate-700 rounded-xl p-3 flex flex-col items-center justify-center h-32 cursor-pointer hover:border-blue-500 transition">
-          {meterImage ? (
-            <img src={meterImage} alt="メーター" className="max-h-full max-w-full object-contain rounded" />
-          ) : (
+          {meterImage ? <img src={meterImage} alt="メーター" className="max-h-full max-w-full object-contain rounded" /> : (
             <>
-              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="mb-1 text-slate-500">
-                <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
-              </svg>
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="mb-1 text-slate-500"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
               <div className="text-xs text-slate-400">メーター</div>
+              <div className="text-[10px] text-slate-600 mt-0.5">📷 or 🖼️</div>
             </>
           )}
-          <input type="file" accept="image/*" capture="environment" onChange={(e) => handleImageChange(e, 'meter')} className="hidden" />
+          <input type="file" accept="image/*" onChange={(e) => handleImageChange(e, 'meter')} className="hidden" />
         </label>
       </div>
 
-      {/* AI解析ボタン */}
-      <button
-        onClick={handleAnalyze}
-        disabled={(!receiptImage && !meterImage) || analyzing}
-        className={`w-full rounded-xl py-3 text-sm font-medium mb-4 flex items-center justify-center gap-2 ${(receiptImage || meterImage) && !analyzing ? 'bg-blue-600 hover:bg-blue-500 text-white' : 'bg-slate-800 text-slate-500'}`}
-      >
+      <button onClick={handleAnalyze} disabled={(!receiptImage && !meterImage) || analyzing} className={`w-full rounded-xl py-3 text-sm font-medium mb-4 flex items-center justify-center gap-2 ${(receiptImage || meterImage) && !analyzing ? 'bg-blue-600 hover:bg-blue-500 text-white' : 'bg-slate-800 text-slate-500'}`}>
         {analyzing ? '解析中...' : '✨ AIで画像を読み取る'}
       </button>
 
-      {aiError && (
-        <div className="bg-red-950/30 border border-red-900 rounded-xl p-3 mb-4 text-sm text-red-300">
-          AI解析失敗: {aiError}
-        </div>
-      )}
+      {aiError && <div className="bg-red-950/30 border border-red-900 rounded-xl p-3 mb-4 text-sm text-red-300">AI解析失敗: {aiError}</div>}
 
-      {/* 入力フォーム */}
       <div className="space-y-3 mb-4">
         <FormField label="給油量 (L)" value={liters} onChange={setLiters} type="number" step="0.01" placeholder="35.42" />
         <FormField label="単価 (円/L)" value={unitPrice} onChange={setUnitPrice} type="number" step="0.01" placeholder="172.5" />
         <FormField label="合計金額 (円) *" value={totalAmount} onChange={setTotalAmount} type="number" placeholder="6111" required />
         <FormField label="オドメーター (km)" value={odometer} onChange={setOdometer} type="number" placeholder="12345" />
-        
-        {lastOdometer && (
-          <div className="text-xs text-slate-500 -mt-1">前回: {lastOdometer.toLocaleString()} km</div>
-        )}
-
+        {lastOdometer && <div className="text-xs text-slate-500 -mt-1">前回: {lastOdometer.toLocaleString()} km</div>}
         <FormField label="給油日時 *" value={datetime} onChange={setDatetime} type="datetime-local" required />
-        <FormField label="給油所" value={stationName} onChange={setStationName} placeholder="ENEOS 秋田中央SS" />
+        <FormField label="給油所" value={stationName} onChange={setStationName} placeholder="カーピット八橋サービスステーション" />
         <FormField label="メモ" value={memo} onChange={setMemo} placeholder="任意" />
       </div>
 
-      {/* 自動計算カード */}
       {(distance !== null || mileage !== null) && (
         <div className="grid grid-cols-2 gap-3 mb-4">
           <div className="bg-slate-900 border border-slate-800 rounded-xl p-3">
@@ -519,47 +400,31 @@ function RecordScreen({ employee, vehicle, vehicles }) {
         </div>
       )}
 
-      {saveMsg && (
-        <div className={`rounded-xl p-3 mb-4 text-sm ${saveMsg.type === 'success' ? 'bg-green-950/30 border border-green-900 text-green-300' : 'bg-red-950/30 border border-red-900 text-red-300'}`}>
-          {saveMsg.text}
-        </div>
-      )}
+      {saveMsg && <div className={`rounded-xl p-3 mb-4 text-sm ${saveMsg.type === 'success' ? 'bg-green-950/30 border border-green-900 text-green-300' : 'bg-red-950/30 border border-red-900 text-red-300'}`}>{saveMsg.text}</div>}
 
-      <button
-        onClick={handleSave}
-        disabled={saving}
-        className={`w-full rounded-xl py-4 text-base font-medium ${saving ? 'bg-slate-800 text-slate-500' : 'bg-blue-600 hover:bg-blue-500 text-white'}`}
-      >
+      <button onClick={handleSave} disabled={saving} className={`w-full rounded-xl py-4 text-base font-medium ${saving ? 'bg-slate-800 text-slate-500' : 'bg-blue-600 hover:bg-blue-500 text-white'}`}>
         {saving ? '保存中...' : '保存する'}
       </button>
     </div>
   );
 }
 
-// ========== フォームフィールド ==========
 function FormField({ label, value, onChange, type = 'text', step, placeholder, required }) {
   return (
     <div>
       <label className="text-xs text-slate-500 mb-1 block">{label}</label>
-      <input
-        type={type}
-        step={step}
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        placeholder={placeholder}
-        required={required}
-        className="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-3 text-base text-slate-100 outline-none focus:border-blue-500"
-      />
+      <input type={type} step={step} value={value} onChange={(e) => onChange(e.target.value)} placeholder={placeholder} required={required} className="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-3 text-base text-slate-100 outline-none focus:border-blue-500" />
     </div>
   );
 }
 
-// ========== 履歴画面 ==========
-function HistoryScreen({ vehicles }) {
+// ========== 履歴 ==========
+function HistoryScreen({ vehicles, employees }) {
   const [records, setRecords] = useState([]);
   const [filterVehicleId, setFilterVehicleId] = useState('all');
-  const [filterMonth, setFilterMonth] = useState('all'); // YYYY-MM or 'all'
+  const [filterMonth, setFilterMonth] = useState('all');
   const [loading, setLoading] = useState(true);
+  const [editingRecord, setEditingRecord] = useState(null);
 
   useEffect(() => { loadRecords(); }, [filterVehicleId, filterMonth]);
 
@@ -578,7 +443,6 @@ function HistoryScreen({ vehicles }) {
     setLoading(false);
   }
 
-  // 月別グルーピング
   const grouped = records.reduce((acc, r) => {
     const key = r.datetime ? r.datetime.slice(0, 7) : 'unknown';
     if (!acc[key]) acc[key] = [];
@@ -630,22 +494,165 @@ function HistoryScreen({ vehicles }) {
                     <div className="text-base font-medium">¥{(r.total_amount || 0).toLocaleString()}</div>
                     <div className="text-sm text-slate-400">{r.liters ? `${r.liters}L` : '-'}</div>
                   </div>
-                  <div className="grid grid-cols-2 gap-2 text-xs">
+                  <div className="grid grid-cols-2 gap-2 text-xs mb-2">
                     <div className="bg-slate-800 rounded px-2 py-1">走行: {r.distance ? `${r.distance} km` : '—'}</div>
                     <div className="bg-slate-800 rounded px-2 py-1">燃費: {r.mileage ? `${r.mileage} km/L` : '—'}</div>
                   </div>
-                  <div className="text-xs text-slate-500 mt-2">{r.driver_name || '-'} / {r.station_name || '-'}</div>
+                  <div className="flex justify-between items-center">
+                    <div className="text-xs text-slate-500">{r.driver_name || '-'} / {r.station_name || '-'}</div>
+                    <button onClick={() => setEditingRecord(r)} className="text-xs bg-slate-800 hover:bg-slate-700 text-blue-400 px-3 py-1 rounded">編集</button>
+                  </div>
                 </div>
               );
             })}
           </div>
         );
       })}
+
+      {editingRecord && (
+        <EditRecordModal
+          record={editingRecord}
+          vehicles={vehicles}
+          employees={employees}
+          onClose={() => setEditingRecord(null)}
+          onSaved={() => { setEditingRecord(null); loadRecords(); }}
+        />
+      )}
     </div>
   );
 }
 
-// ========== 月次集計画面(簡易) ==========
+// ========== 編集モーダル ==========
+function EditRecordModal({ record, vehicles, employees, onClose, onSaved }) {
+  const [form, setForm] = useState({
+    datetime: record.datetime ? record.datetime.slice(0, 16) : '',
+    vehicle_id: record.vehicle_id || '',
+    employee_id: record.employee_id || '',
+    driver_name: record.driver_name || '',
+    department: record.department || '',
+    liters: record.liters ?? '',
+    unit_price: record.unit_price ?? '',
+    total_amount: record.total_amount ?? '',
+    odometer: record.odometer ?? '',
+    distance: record.distance ?? '',
+    mileage: record.mileage ?? '',
+    station_name: record.station_name || '',
+    memo: record.memo || '',
+  });
+  const [saving, setSaving] = useState(false);
+  const [err, setErr] = useState(null);
+
+  function update(key, value) { setForm(prev => ({ ...prev, [key]: value })); }
+
+  async function handleSave() {
+    setSaving(true);
+    setErr(null);
+    try {
+      const res = await fetch('/api/update-record', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id: record.id,
+          datetime: form.datetime || null,
+          vehicle_id: form.vehicle_id || null,
+          employee_id: form.employee_id || null,
+          driver_name: form.driver_name || null,
+          department: form.department || null,
+          liters: form.liters !== '' ? Number(form.liters) : null,
+          unit_price: form.unit_price !== '' ? Number(form.unit_price) : null,
+          total_amount: form.total_amount !== '' ? Number(form.total_amount) : null,
+          odometer: form.odometer !== '' ? Number(form.odometer) : null,
+          distance: form.distance !== '' ? Number(form.distance) : null,
+          mileage: form.mileage !== '' ? Number(form.mileage) : null,
+          station_name: form.station_name || null,
+          memo: form.memo || null,
+        }),
+      });
+      const json = await res.json();
+      if (!res.ok || !json.success) throw new Error(json.error || '更新失敗');
+      onSaved();
+    } catch (e) {
+      setErr(e.message);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function handleDelete() {
+    if (!confirm('このレコードを完全に削除します。よろしいですか?')) return;
+    setSaving(true);
+    try {
+      const { error } = await supabase.from('fuel_records').delete().eq('id', record.id);
+      if (error) throw error;
+      // GAS側からも削除
+      const gasUrl = '/api/delete-record';
+      fetch(gasUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: record.id }),
+      }).catch(() => {});
+      onSaved();
+    } catch (e) {
+      setErr(e.message);
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4 overflow-y-auto">
+      <div className="bg-slate-950 border border-slate-800 rounded-2xl w-full max-w-md p-5 my-4 max-h-[90vh] overflow-y-auto">
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-lg font-medium">レコード編集</h2>
+          <button onClick={onClose} className="text-slate-400 text-2xl leading-none">×</button>
+        </div>
+
+        {err && <div className="bg-red-950/30 border border-red-900 rounded-xl p-3 mb-4 text-sm text-red-300">{err}</div>}
+
+        <div className="space-y-3">
+          <div>
+            <label className="text-xs text-slate-500 mb-1 block">給油日時</label>
+            <input type="datetime-local" value={form.datetime} onChange={e => update('datetime', e.target.value)} className="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-3 text-base" />
+          </div>
+          <div>
+            <label className="text-xs text-slate-500 mb-1 block">車両</label>
+            <select value={form.vehicle_id} onChange={e => update('vehicle_id', e.target.value)} className="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-3 text-base">
+              {vehicles.map(v => <option key={v.id} value={v.id}>{v.name}</option>)}
+            </select>
+          </div>
+          <div>
+            <label className="text-xs text-slate-500 mb-1 block">運転者</label>
+            <select value={form.employee_id} onChange={e => {
+              const emp = employees.find(x => x.id === e.target.value);
+              update('employee_id', e.target.value);
+              if (emp) { update('driver_name', emp.name); update('department', emp.department || ''); }
+            }} className="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-3 text-base">
+              <option value="">-- 選択 --</option>
+              {employees.map(emp => <option key={emp.id} value={emp.id}>{emp.name} ({emp.department})</option>)}
+            </select>
+          </div>
+          <FormField label="給油量 (L)" value={form.liters} onChange={v => update('liters', v)} type="number" step="0.01" />
+          <FormField label="単価 (円/L)" value={form.unit_price} onChange={v => update('unit_price', v)} type="number" step="0.01" />
+          <FormField label="合計金額 (円)" value={form.total_amount} onChange={v => update('total_amount', v)} type="number" />
+          <FormField label="オドメーター (km)" value={form.odometer} onChange={v => update('odometer', v)} type="number" />
+          <FormField label="走行距離 (km)" value={form.distance} onChange={v => update('distance', v)} type="number" step="0.1" />
+          <FormField label="燃費 (km/L)" value={form.mileage} onChange={v => update('mileage', v)} type="number" step="0.01" />
+          <FormField label="給油所" value={form.station_name} onChange={v => update('station_name', v)} />
+          <FormField label="メモ" value={form.memo} onChange={v => update('memo', v)} />
+        </div>
+
+        <div className="flex gap-2 mt-5">
+          <button onClick={handleDelete} disabled={saving} className="bg-red-900/30 text-red-400 border border-red-900 rounded-xl px-4 py-3 text-sm">削除</button>
+          <button onClick={onClose} className="flex-1 bg-slate-800 text-slate-300 rounded-xl py-3 text-sm">キャンセル</button>
+          <button onClick={handleSave} disabled={saving} className={`flex-1 rounded-xl py-3 text-sm font-medium ${saving ? 'bg-slate-800 text-slate-500' : 'bg-blue-600 text-white'}`}>
+            {saving ? '保存中...' : '保存'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ========== 月次集計 ==========
 function MonthlyScreen({ vehicles }) {
   const [month, setMonth] = useState(() => new Date().toISOString().slice(0, 7));
   const [records, setRecords] = useState([]);
@@ -663,7 +670,6 @@ function MonthlyScreen({ vehicles }) {
   const totalLiters = records.reduce((s, r) => s + (r.liters || 0), 0);
   const avgMileage = totalLiters > 0 ? (totalDist / totalLiters).toFixed(2) : '—';
 
-  // 車両別
   const byVehicle = {};
   records.forEach(r => {
     if (!byVehicle[r.vehicle_id]) byVehicle[r.vehicle_id] = { dist: 0, amount: 0, liters: 0 };
@@ -675,14 +681,12 @@ function MonthlyScreen({ vehicles }) {
   return (
     <div className="p-4 max-w-xl mx-auto">
       <input type="month" value={month} onChange={e => setMonth(e.target.value)} className="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-3 text-base mb-4" />
-      
       <div className="grid grid-cols-2 gap-3 mb-4">
         <MetricCard label="月間走行距離" value={`${totalDist.toLocaleString()} km`} />
         <MetricCard label="月間費用" value={`¥${totalAmount.toLocaleString()}`} />
         <MetricCard label="月間給油量" value={`${totalLiters.toFixed(1)} L`} />
         <MetricCard label="月平均燃費" value={`${avgMileage} km/L`} />
       </div>
-
       <div className="text-xs text-slate-500 uppercase tracking-wider mb-2">車両別</div>
       {Object.entries(byVehicle).sort(([,a], [,b]) => b.dist - a.dist).map(([vid, d]) => {
         const veh = vehicles.find(v => v.id === vid);
@@ -696,7 +700,6 @@ function MonthlyScreen({ vehicles }) {
           </div>
         );
       })}
-      
       {records.length === 0 && <div className="text-center text-slate-500 py-8">この月の記録はありません</div>}
     </div>
   );
@@ -711,10 +714,9 @@ function MetricCard({ label, value }) {
   );
 }
 
-// ========== 設定画面 ==========
+// ========== 設定 ==========
 function SettingsScreen({ employee, employees, vehicles, onReload }) {
-  const [mode, setMode] = useState('menu'); // menu/employees/vehicles
-  
+  const [mode, setMode] = useState('menu');
   if (mode === 'employees') return <EmployeeManagement onBack={() => setMode('menu')} onReload={onReload} employees={employees} />;
   if (mode === 'vehicles') return <VehicleManagement onBack={() => setMode('menu')} onReload={onReload} vehicles={vehicles} />;
 
@@ -728,7 +730,6 @@ function SettingsScreen({ employee, employees, vehicles, onReload }) {
         </div>
         <span className="text-xs text-slate-500">{vehicles.length}台 ›</span>
       </button>
-
       {employee?.is_admin && (
         <>
           <div className="text-xs text-amber-500 uppercase tracking-wider mb-3 mt-6 flex items-center gap-2">
@@ -755,46 +756,50 @@ function EmployeeManagement({ onBack, onReload, employees }) {
   const [addAdmin, setAddAdmin] = useState(false);
   const [adding, setAdding] = useState(false);
 
+  async function syncToSheet() {
+    const { data } = await supabase.from('employees').select('*').order('name');
+    fetch('/api/sync-employees', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ employees: data || [] }),
+    }).catch(() => {});
+  }
+
   async function handleAdd() {
     if (!addName.trim()) { alert('名前を入力してください'); return; }
     setAdding(true);
     const { error } = await supabase.from('employees').insert({
-      name: addName.trim(),
-      department: addDept,
-      is_active: true,
-      is_admin: addAdmin,
+      name: addName.trim(), department: addDept, is_active: true, is_admin: addAdmin,
     });
     setAdding(false);
     if (error) { alert('エラー: ' + error.message); return; }
     setAddName(''); setAddAdmin(false);
-    onReload();
+    await onReload();
+    syncToSheet();
   }
 
   async function handleDeactivate(emp) {
-    if (!confirm(`${emp.name} を退職扱いにしますか?(過去データは保持されます)`)) return;
+    if (!confirm(`${emp.name} を退職扱いにしますか?`)) return;
     await supabase.from('employees').update({ is_active: false }).eq('id', emp.id);
-    onReload();
+    await onReload();
+    syncToSheet();
   }
 
   async function handleToggleAdmin(emp) {
     await supabase.from('employees').update({ is_admin: !emp.is_admin }).eq('id', emp.id);
-    onReload();
+    await onReload();
+    syncToSheet();
   }
 
   return (
     <div className="p-4 max-w-xl mx-auto">
       <button onClick={onBack} className="text-sm text-blue-400 mb-4">‹ 戻る</button>
       <h2 className="text-lg font-medium mb-4">社員管理</h2>
-
       <div className="bg-slate-900 border border-slate-800 rounded-xl p-4 mb-6">
         <div className="text-xs text-slate-500 uppercase mb-2">新規追加</div>
         <input value={addName} onChange={e => setAddName(e.target.value)} placeholder="社員名" className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm mb-2" />
         <select value={addDept} onChange={e => setAddDept(e.target.value)} className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm mb-2">
-          <option>ライフデザイン部</option>
-          <option>エンジニアリング部</option>
-          <option>不動産部</option>
-          <option>総務部</option>
-          <option>その他</option>
+          <option>ライフデザイン部</option><option>エンジニアリング部</option><option>不動産部</option><option>総務部</option><option>その他</option>
         </select>
         <label className="flex items-center gap-2 text-sm mb-3">
           <input type="checkbox" checked={addAdmin} onChange={e => setAddAdmin(e.target.checked)} />
@@ -804,7 +809,6 @@ function EmployeeManagement({ onBack, onReload, employees }) {
           {adding ? '追加中...' : '追加'}
         </button>
       </div>
-
       <div className="text-xs text-slate-500 uppercase mb-2">現在の社員({employees.length}名)</div>
       {employees.map(emp => (
         <div key={emp.id} className="bg-slate-900 border border-slate-800 rounded-xl p-3 mb-2 flex items-center justify-between">
@@ -836,14 +840,10 @@ function VehicleManagement({ onBack, onReload, vehicles }) {
   async function handleAdd() {
     if (!addName.trim()) { alert('車両名を入力してください'); return; }
     const { error } = await supabase.from('vehicles').insert({
-      name: addName.trim(),
-      plate_number: addPlate.trim() || '',
-      fuel_type: 'gasoline',
-      is_active: true,
+      name: addName.trim(), plate_number: addPlate.trim() || '', fuel_type: 'gasoline', is_active: true,
     });
     if (error) { alert('エラー: ' + error.message); return; }
-    setAddName(''); setAddPlate('');
-    onReload();
+    setAddName(''); setAddPlate(''); onReload();
   }
 
   async function handleUpdate(veh, field, value) {
@@ -861,14 +861,12 @@ function VehicleManagement({ onBack, onReload, vehicles }) {
     <div className="p-4 max-w-xl mx-auto">
       <button onClick={onBack} className="text-sm text-blue-400 mb-4">‹ 戻る</button>
       <h2 className="text-lg font-medium mb-4">車両管理</h2>
-
       <div className="bg-slate-900 border border-slate-800 rounded-xl p-4 mb-6">
         <div className="text-xs text-slate-500 uppercase mb-2">新規追加</div>
         <input value={addName} onChange={e => setAddName(e.target.value)} placeholder="車両名 例: アクア(山田)" className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm mb-2" />
         <input value={addPlate} onChange={e => setAddPlate(e.target.value)} placeholder="ナンバー 例: 秋田 301 ち 117" className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm mb-3" />
         <button onClick={handleAdd} className="w-full bg-blue-600 text-white rounded-lg py-2 text-sm">追加</button>
       </div>
-
       <div className="text-xs text-slate-500 uppercase mb-2">登録車両({vehicles.length}台)</div>
       {vehicles.map(veh => (
         <div key={veh.id} className="bg-slate-900 border border-slate-800 rounded-xl p-3 mb-2">
@@ -902,7 +900,7 @@ function TabBar({ tab, setTab }) {
     { id: 'record', label: '給油記録', icon: <path d="M3 22V8a2 2 0 012-2h8a2 2 0 012 2v14M7 22V10h6v12M17 10h2a2 2 0 012 2v6a2 2 0 002 2"/> },
     { id: 'history', label: '履歴', icon: <><path d="M1 4v6h6"/><path d="M3.51 15a9 9 0 102.13-9.36L1 10"/></> },
     { id: 'monthly', label: '月次集計', icon: <><path d="M12 20V10"/><path d="M18 20V4"/><path d="M6 20v-4"/></> },
-    { id: 'settings', label: '設定', icon: <><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 01-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09a1.65 1.65 0 00-1-1.51 1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 11-2.83-2.83l.06-.06a1.65 1.65 0 00.33-1.82 1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09a1.65 1.65 0 001.51-1 1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06a1.65 1.65 0 001.82.33h0a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51h0a1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06a1.65 1.65 0 00-.33 1.82v0a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></> },
+    { id: 'settings', label: '設定', icon: <><circle cx="12" cy="12" r="3"/></> },
   ];
   return (
     <div className="fixed bottom-0 left-0 right-0 bg-slate-900 border-t border-slate-800 grid grid-cols-4 py-2">
