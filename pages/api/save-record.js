@@ -1,5 +1,10 @@
 import { createClient } from '@supabase/supabase-js';
 
+const supabaseAdmin = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL,
+  process.env.SUPABASE_SERVICE_ROLE_KEY
+);
+
 export const config = {
   api: {
     bodyParser: {
@@ -14,92 +19,77 @@ export default async function handler(req, res) {
   }
 
   try {
-    const {
-      vehicleId,
-      vehicleName,
-      plateNumber,
-      driver,
-      department,
-      refueledAt,
-      liters,
-      pricePerLiter,
-      totalAmount,
-      odometer,
-      stationName,
-      note,
-      imageBase64,
-      imageMediaType,
-    } = req.body;
+    const data = req.body;
 
-    if (!vehicleId || !driver || !liters || !totalAmount) {
-      return res.status(400).json({ error: '必須項目が不足しています' });
-    }
+    // 1. Supabaseに保存
+    const { data: saved, error: dbError } = await supabaseAdmin
+      .from('fuel_records')
+      .insert({
+        vehicle_id: data.vehicle_id,
+        employee_id: data.employee_id,
+        driver_name: data.driver_name,
+        department: data.department,
+        datetime: data.datetime,
+        liters: data.liters,
+        unit_price: data.unit_price,
+        total_amount: data.total_amount,
+        odometer: data.odometer,
+        distance: data.distance,
+        mileage: data.mileage,
+        station_name: data.station_name,
+        memo: data.memo,
+        receipt_image: data.receipt_image,
+        meter_image: data.meter_image,
+      })
+      .select()
+      .single();
 
-    const supabase = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL,
-      process.env.SUPABASE_SERVICE_ROLE_KEY
-    );
+    if (dbError) throw new Error(`DB保存エラー: ${dbError.message}`);
 
-    let driveImageUrl = null;
+    // 2. 車両情報を取得
+    const { data: vehicle } = await supabaseAdmin
+      .from('vehicles')
+      .select('name, plate_number')
+      .eq('id', data.vehicle_id)
+      .single();
+
+    // 3. GAS経由でSpreadsheetに追記(非同期、エラーは無視)
     const gasUrl = process.env.GAS_URL;
-
     if (gasUrl) {
       try {
-        const gasRes = await fetch(gasUrl, {
+        await fetch(gasUrl, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            driver,
-            department: department || '',
-            vehicleName: vehicleName || '',
-            plateNumber: plateNumber || '',
-            refueledAt: refueledAt || '',
-            liters,
-            pricePerLiter: pricePerLiter ?? '',
-            totalAmount,
-            odometer: odometer ?? '',
-            stationName: stationName || '',
-            note: note || '',
-            imageBase64: imageBase64 || '',
-            imageMediaType: imageMediaType || 'image/jpeg',
+            action: 'append',
+            data: {
+              id: saved.id,
+              datetime: data.datetime,
+              driver_name: data.driver_name,
+              department: data.department,
+              vehicle_name: vehicle?.name || '',
+              plate_number: vehicle?.plate_number || '',
+              liters: data.liters,
+              unit_price: data.unit_price,
+              total_amount: data.total_amount,
+              odometer: data.odometer,
+              distance: data.distance,
+              mileage: data.mileage,
+              station_name: data.station_name,
+              memo: data.memo,
+              receipt_image_url: '',
+              meter_image_url: '',
+            },
           }),
         });
-        const gasJson = await gasRes.json();
-        if (gasJson.success && gasJson.imageUrl) {
-          driveImageUrl = gasJson.imageUrl;
-        }
       } catch (gasErr) {
-        console.error('GAS error (continuing):', gasErr);
+        console.warn('GAS sync failed:', gasErr.message);
       }
     }
 
-    const payload = {
-      vehicle_id: vehicleId,
-      driver_name: driver,
-      department: department || null,
-      refueled_at: refueledAt
-        ? new Date(refueledAt).toISOString()
-        : new Date().toISOString(),
-      liters: Number(liters),
-      price_per_liter: pricePerLiter ? Number(pricePerLiter) : null,
-      total_amount: Number(totalAmount),
-      odometer: odometer ? Number(odometer) : null,
-      station_name: stationName || null,
-      photo_url: driveImageUrl,
-      note: note || null,
-    };
-
-    const { error } = await supabase.from('fuel_records').insert(payload);
-    if (error) throw error;
-
-    return res.status(200).json({
-      success: true,
-      imageUrl: driveImageUrl,
-    });
-  } catch (err) {
-    console.error('save-record error:', err);
-    return res
-      .status(500)
-      .json({ error: err.message || '保存に失敗しました' });
+    return res.status(200).json({ success: true, record: saved });
+  } catch (error) {
+    console.error('save-record error:', error);
+    return res.status(500).json({ error: error.message });
   }
 }
