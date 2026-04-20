@@ -20,8 +20,34 @@ export default async function handler(req, res) {
 
   try {
     const data = req.body;
+    const gasUrl = process.env.GAS_URL;
 
-    // 1. Supabaseに保存
+    // 1. レシート画像があればGAS経由でDriveに保存してURLを得る
+    let receiptUrl = null;
+    if (data.receipt_image && gasUrl) {
+      try {
+        const uploadRes = await fetch(gasUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            action: 'uploadReceipt',
+            data: {
+              imageBase64: data.receipt_image,
+              datetime: data.datetime,
+              driver_name: data.driver_name,
+            },
+          }),
+        });
+        const uploadJson = await uploadRes.json();
+        if (uploadJson.success && uploadJson.result?.url) {
+          receiptUrl = uploadJson.result.url;
+        }
+      } catch (uploadErr) {
+        console.warn('Receipt upload failed:', uploadErr.message);
+      }
+    }
+
+    // 2. Supabaseに保存(Base64画像ではなくDrive URLを保存)
     const { data: saved, error: dbError } = await supabaseAdmin
       .from('fuel_records')
       .insert({
@@ -38,23 +64,22 @@ export default async function handler(req, res) {
         mileage: data.mileage,
         station_name: data.station_name,
         memo: data.memo,
-        receipt_image: data.receipt_image,
-        meter_image: data.meter_image,
+        receipt_image: receiptUrl,  // URLのみ
+        meter_image: null,           // メーター画像は保存しない
       })
       .select()
       .single();
 
     if (dbError) throw new Error(`DB保存エラー: ${dbError.message}`);
 
-    // 2. 車両情報を取得
+    // 3. 車両情報を取得
     const { data: vehicle } = await supabaseAdmin
       .from('vehicles')
       .select('name, plate_number')
       .eq('id', data.vehicle_id)
       .single();
 
-    // 3. GAS経由でSpreadsheetに追記(非同期、エラーは無視)
-    const gasUrl = process.env.GAS_URL;
+    // 4. GAS経由でSpreadsheetに追記
     if (gasUrl) {
       try {
         await fetch(gasUrl, {
@@ -77,7 +102,7 @@ export default async function handler(req, res) {
               mileage: data.mileage,
               station_name: data.station_name,
               memo: data.memo,
-              receipt_image_url: '',
+              receipt_image_url: receiptUrl || '',
               meter_image_url: '',
             },
           }),
