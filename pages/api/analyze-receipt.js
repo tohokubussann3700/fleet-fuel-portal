@@ -14,33 +14,18 @@ export default async function handler(req, res) {
   }
 
   try {
-    const { imageBase64, mediaType } = req.body;
+    const { imageBase64 } = req.body;
 
     if (!imageBase64) {
       return res.status(400).json({ error: '画像データがありません' });
     }
 
+    // Base64ヘッダー除去
+    const base64Data = imageBase64.replace(/^data:image\/\w+;base64,/, '');
+
     const client = new Anthropic({
       apiKey: process.env.ANTHROPIC_API_KEY,
     });
-
-    const prompt = `あなたはガソリンスタンドのレシートを解析する専門家です。
-画像から以下の6項目を読み取り、純粋なJSONのみで返してください。
-マークダウンのコードブロックや説明文は一切不要です。
-
-読み取り項目:
-- liters: 給油量(L) 数値のみ
-- price_per_liter: 単価(円/L) 数値のみ
-- total_amount: 合計金額(円) 数値のみ
-- odometer: 走行距離/オドメーター(km) 数値のみ、レシートに無ければ null
-- refueled_at: 給油日時 ISO 8601形式の文字列(例 "2026-04-17T14:30:00+09:00")、時刻不明なら日付のみ
-- station_name: 給油所名 文字列
-
-読み取れない項目は null にしてください。推測はせず、読み取れた値のみ返します。
-レシートが不鮮明で全く読み取れない場合は、すべて null にしてください。
-
-出力フォーマット(この形式のJSONだけを返す):
-{"liters": 35.42, "price_per_liter": 172.5, "total_amount": 6111, "odometer": null, "refueled_at": "2026-04-17T14:30:00+09:00", "station_name": "ENEOS 秋田中央SS"}`;
 
     const response = await client.messages.create({
       model: 'claude-sonnet-4-20250514',
@@ -53,40 +38,42 @@ export default async function handler(req, res) {
               type: 'image',
               source: {
                 type: 'base64',
-                media_type: mediaType || 'image/jpeg',
-                data: imageBase64,
+                media_type: 'image/jpeg',
+                data: base64Data,
               },
             },
             {
               type: 'text',
-              text: prompt,
+              text: `このガソリン給油レシート画像から以下の情報を抽出してJSONで返してください。読み取れない項目はnullにしてください。説明文は不要で、JSONのみ返してください。
+
+{
+  "liters": 給油量(L、数値),
+  "unitPrice": 単価(円/L、数値),
+  "totalAmount": 合計金額(円、数値),
+  "stationName": 給油所名(文字列),
+  "datetime": "YYYY-MM-DDTHH:MM" 形式の日時
+}`,
             },
           ],
         },
       ],
     });
 
-    const textBlock = response.content.find((b) => b.type === 'text');
-    const rawText = textBlock ? textBlock.text : '';
-
-    const cleaned = rawText.replace(/```json|```/g, '').trim();
-    let parsed;
-    try {
-      parsed = JSON.parse(cleaned);
-    } catch (e) {
-      const match = cleaned.match(/\{[\s\S]*\}/);
-      if (match) {
-        parsed = JSON.parse(match[0]);
-      } else {
-        throw new Error('AI応答のJSON解析に失敗: ' + rawText.slice(0, 200));
-      }
+    const text = response.content[0].text.trim();
+    
+    // JSON部分だけ抽出(余計な文字が混入する場合の保険)
+    const jsonMatch = text.match(/\{[\s\S]*\}/);
+    if (!jsonMatch) {
+      return res.status(500).json({ error: 'AIの応答がJSON形式ではありません', raw: text });
     }
 
+    const parsed = JSON.parse(jsonMatch[0]);
     return res.status(200).json({ success: true, data: parsed });
-  } catch (err) {
-    console.error('analyze-receipt error:', err);
-    return res
-      .status(500)
-      .json({ error: err.message || 'AI解析でエラーが発生しました' });
+
+  } catch (error) {
+    console.error('AI解析エラー:', error);
+    return res.status(500).json({ 
+      error: error.message || 'サーバーエラーが発生しました' 
+    });
   }
 }
