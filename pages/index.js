@@ -366,28 +366,51 @@ function RecordScreen({ employee, vehicle, onSaved }) {
   return (
     <div className="p-4 max-w-xl mx-auto">
       <div className="grid grid-cols-2 gap-3 mb-4">
-        <label className="bg-slate-900 border border-slate-700 rounded-xl p-3 flex flex-col items-center justify-center h-32 cursor-pointer hover:border-blue-500 transition">
-          {receiptImage ? <img src={receiptImage} alt="レシート" className="max-h-full max-w-full object-contain rounded" /> : (
-            <>
-              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="mb-1 text-slate-300"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
-              <div className="text-sm text-slate-200">レシート</div>
-              <div className="text-[10px] text-slate-400 mt-0.5">📷 or 🖼️</div>
-            </>
+        <div>
+          <div className="text-xs text-slate-300 mb-1.5 text-center">レシート</div>
+          {receiptImage ? (
+            <div className="relative bg-slate-900 border border-slate-700 rounded-xl p-2 h-32 flex items-center justify-center">
+              <img src={receiptImage} alt="レシート" className="max-h-full max-w-full object-contain rounded" />
+              <button onClick={() => setReceiptImage(null)} className="absolute top-1 right-1 w-6 h-6 bg-slate-800/80 rounded-full text-slate-200 text-xs">×</button>
+            </div>
+          ) : (
+            <div className="grid grid-cols-2 gap-2 h-32">
+              <label className="bg-blue-950/40 border border-blue-800 rounded-xl flex flex-col items-center justify-center cursor-pointer hover:border-blue-500 transition">
+                <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-blue-300 mb-1"><path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z"/><circle cx="12" cy="13" r="4"/></svg>
+                <div className="text-xs text-blue-200">撮影</div>
+                <input type="file" accept="image/*" capture="environment" onChange={(e) => handleImageChange(e, 'receipt')} className="hidden" />
+              </label>
+              <label className="bg-slate-900 border border-slate-700 rounded-xl flex flex-col items-center justify-center cursor-pointer hover:border-blue-500 transition">
+                <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-slate-300 mb-1"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+                <div className="text-xs text-slate-300">画像選択</div>
+                <input type="file" accept="image/*" onChange={(e) => handleImageChange(e, 'receipt')} className="hidden" />
+              </label>
+            </div>
           )}
-          <input type="file" accept="image/*" onChange={(e) => handleImageChange(e, 'receipt')} className="hidden" />
-        </label>
-        <label className="bg-slate-900 border border-slate-700 rounded-xl p-3 flex flex-col items-center justify-center h-32 cursor-pointer hover:border-blue-500 transition">
-          {meterImage ? <img src={meterImage} alt="メーター" className="max-h-full max-w-full object-contain rounded" /> : (
-            <>
-              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="mb-1 text-slate-300"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
-              <div className="text-sm text-slate-200">メーター</div>
-              <div className="text-[10px] text-slate-400 mt-0.5">📷 or 🖼️</div>
-            </>
+        </div>
+        <div>
+          <div className="text-xs text-slate-300 mb-1.5 text-center">メーター</div>
+          {meterImage ? (
+            <div className="relative bg-slate-900 border border-slate-700 rounded-xl p-2 h-32 flex items-center justify-center">
+              <img src={meterImage} alt="メーター" className="max-h-full max-w-full object-contain rounded" />
+              <button onClick={() => setMeterImage(null)} className="absolute top-1 right-1 w-6 h-6 bg-slate-800/80 rounded-full text-slate-200 text-xs">×</button>
+            </div>
+          ) : (
+            <div className="grid grid-cols-2 gap-2 h-32">
+              <label className="bg-blue-950/40 border border-blue-800 rounded-xl flex flex-col items-center justify-center cursor-pointer hover:border-blue-500 transition">
+                <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-blue-300 mb-1"><path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z"/><circle cx="12" cy="13" r="4"/></svg>
+                <div className="text-xs text-blue-200">撮影</div>
+                <input type="file" accept="image/*" capture="environment" onChange={(e) => handleImageChange(e, 'meter')} className="hidden" />
+              </label>
+              <label className="bg-slate-900 border border-slate-700 rounded-xl flex flex-col items-center justify-center cursor-pointer hover:border-blue-500 transition">
+                <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-slate-300 mb-1"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+                <div className="text-xs text-slate-300">画像選択</div>
+                <input type="file" accept="image/*" onChange={(e) => handleImageChange(e, 'meter')} className="hidden" />
+              </label>
+            </div>
           )}
-          <input type="file" accept="image/*" onChange={(e) => handleImageChange(e, 'meter')} className="hidden" />
-        </label>
+        </div>
       </div>
-
       <button onClick={handleAnalyze} disabled={(!receiptImage && !meterImage) || analyzing} className={`w-full rounded-xl py-3 text-base font-medium mb-4 flex items-center justify-center gap-2 ${(receiptImage || meterImage) && !analyzing ? 'bg-blue-600 hover:bg-blue-500 text-white' : 'bg-slate-800 text-slate-400'}`}>
         {analyzing ? '解析中...' : '✨ AIで画像を読み取る'}
       </button>
